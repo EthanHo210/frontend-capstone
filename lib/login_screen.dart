@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'signup_screen.dart';
 import 'password_reset_screen.dart';
+import 'mock_database.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -16,19 +17,14 @@ class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
 
   String? _errorMessage;
-
-  // 🔐 Mock user database (replace this with a real backend/database later)
-  final Map<String, String> mockUsers = {
-    'user@example.com': 'password123',
-    'admin@example.com': 'adminpass',
-  };
+  final mockDB = MockDatabase();
 
   void _login() {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
 
     if (_formKey.currentState!.validate()) {
-      if (mockUsers[email] == password) {
+      if (mockDB.authenticate(email, password)) {
         Navigator.pushNamed(
           context,
           '/dashboard',

@@ -37,12 +37,13 @@ class MainDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>?;
     final userEmail = args?['email'] ?? 'Guest';
+    final isLoggedIn = userEmail != 'Guest';
 
     return WillPopScope(
-      onWillPop: () async => false, // Disable back button
+      onWillPop: () async => false,
       child: Scaffold(
         appBar: AppBar(
-          automaticallyImplyLeading: false, // Remove back arrow
+          automaticallyImplyLeading: false,
           backgroundColor: Colors.transparent,
           elevation: 0,
           title: Text(
@@ -54,7 +55,7 @@ class MainDashboard extends StatelessWidget {
             ),
           ),
           actions: [
-            if (userEmail != 'Guest')
+            if (isLoggedIn)
               Row(
                 children: [
                   CircleAvatar(
@@ -68,6 +69,14 @@ class MainDashboard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       color: Colors.teal[800],
                       fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  TextButton(
+                    onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
+                    child: Text(
+                      'Sign Out',
+                      style: GoogleFonts.poppins(color: Colors.teal[800]),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -130,11 +139,6 @@ class MainDashboard extends StatelessWidget {
       ),
     );
   }
-
-  // TODO: Replace mock user data verification with actual database connection.
-  // The login logic currently checks a hardcoded list in login_screen.dart.
-  // You'll find the mock database section in login_screen.dart like this:
-  // final mockUsers = { 'user@example.com': 'password123', ... };
 
   Widget _buildDashboardCard(BuildContext context,
       {required String title,

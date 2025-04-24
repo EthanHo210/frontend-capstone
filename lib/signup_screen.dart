@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
-import 'dart:core';
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
@@ -20,6 +19,8 @@ class _SignupScreenState extends State<SignupScreen> {
 
   String? _passwordStrength;
   Color? _strengthColor;
+
+  final mockDB = MockDatabase();
 
   void _checkPasswordStrength(String password) {
     if (password.length < 8) {
@@ -43,15 +44,20 @@ class _SignupScreenState extends State<SignupScreen> {
       final email = _emailController.text.trim();
       final password = _passwordController.text;
 
-      if (MockDatabase.emails.contains(email)) {
+      if (mockDB.emailExists(email)) {
         _showDialog("This email has been used. Please try again.");
         return;
       }
 
-      MockDatabase.emails.add(email); // Register email in mock DB
-      MockDatabase.users.add({"email": email, "password": password});
+      // Save the new user to the mock database
+      mockDB.addUser(email, password);
 
-      Navigator.pushNamed(context, '/dashboard', arguments: {'email': email});
+      // Navigate to the dashboard after successful signup
+      Navigator.pushNamed(
+        context,
+        '/dashboard',
+        arguments: {'email': email},
+      );
     }
   }
 
@@ -104,7 +110,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 _buildInputField('Date of Birth', controller: _dobController),
                 _buildInputField('Email address', controller: _emailController, validator: (value) {
                   if (value == null || value.isEmpty) return "This field cannot be blank";
-                  final emailRegex = RegExp(r"^[\w\-.]+@([\w-]+\.)+[\w-]{2,4}\$");
+                  final emailRegex = RegExp(r"^[\w\-.]+@([\w\-]+\.)+[\w\-]{2,}$");
                   if (!emailRegex.hasMatch(value)) return "Please enter a valid email address";
                   return null;
                 }),
