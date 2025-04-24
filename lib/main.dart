@@ -37,6 +37,7 @@ class MainDashboard extends StatelessWidget {
   Widget build(BuildContext context) {
     final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>?;
     final userEmail = args?['email'] ?? 'Guest';
+    final username = args?['username'] ?? userEmail.split('@')[0];
     final isLoggedIn = userEmail != 'Guest';
 
     return WillPopScope(
@@ -65,7 +66,7 @@ class MainDashboard extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    userEmail.split('@')[0],
+                    username,
                     style: GoogleFonts.poppins(
                       color: Colors.teal[800],
                       fontWeight: FontWeight.w500,

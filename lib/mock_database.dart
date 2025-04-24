@@ -6,20 +6,41 @@ class MockDatabase {
   MockDatabase._internal();
 
   final List<Map<String, String>> _users = [
-    {'email': 'user@example.com', 'password': 'password123'},
-    {'email': 'admin@example.com', 'password': 'adminpass'},
+    {'username': 'user1', 'email': 'user@example.com', 'password': 'password123'},
+    {'username': 'admin', 'email': 'admin@example.com', 'password': 'adminpass'},
   ];
 
-  bool authenticate(String email, String password) {
-    return _users.any((user) =>
-        user['email'] == email && user['password'] == password);
+  void addUser(String username, String email, String password) {
+    _users.add({'username': username, 'email': email, 'password': password});
   }
 
   bool emailExists(String email) {
     return _users.any((user) => user['email'] == email);
   }
 
-  void addUser(String email, String password) {
-    _users.add({'email': email, 'password': password});
+  bool usernameExists(String username) {
+    return _users.any((user) => user['username'] == username);
   }
+
+  bool authenticate(String identifier, String password) {
+    return _users.any((user) =>
+      (user['email'] == identifier || user['username'] == identifier) &&
+      user['password'] == password);
+  }
+
+  String? getUsernameByEmail(String email) {
+    return _users.firstWhere(
+      (user) => user['email'] == email,
+      orElse: () => {},
+    )['username'];
+  }
+
+  String? getEmailByUsername(String username) {
+    return _users.firstWhere(
+      (user) => user['username'] == username,
+      orElse: () => {},
+    )['email'];
+  }
+
+  List<Map<String, String>> getAllUsers() => List.unmodifiable(_users);
 }

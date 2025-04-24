@@ -12,7 +12,7 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailController = TextEditingController();
+  final _emailOrUsernameController = TextEditingController();
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
 
@@ -20,15 +20,19 @@ class _LoginScreenState extends State<LoginScreen> {
   final mockDB = MockDatabase();
 
   void _login() {
-    final email = _emailController.text.trim();
+    final identifier = _emailOrUsernameController.text.trim();
     final password = _passwordController.text;
 
     if (_formKey.currentState!.validate()) {
-      if (mockDB.authenticate(email, password)) {
+      if (mockDB.authenticate(identifier, password)) {
+        final email = mockDB.getEmailByUsername(identifier) ??
+            (identifier.contains('@') ? identifier : '');
+        final username = mockDB.getUsernameByEmail(identifier) ?? identifier;
+
         Navigator.pushNamed(
           context,
           '/dashboard',
-          arguments: {'email': email},
+          arguments: {'email': email, 'username': username},
         );
       } else {
         setState(() {
@@ -68,8 +72,8 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: 16),
                 TextFormField(
-                  controller: _emailController,
-                  decoration: _inputDecoration('Email address'),
+                  controller: _emailOrUsernameController,
+                  decoration: _inputDecoration('Email or Username'),
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
                       return 'This field cannot be blank';

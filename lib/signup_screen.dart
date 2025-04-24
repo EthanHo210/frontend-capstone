@@ -13,6 +13,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _dobController = TextEditingController();
+  final _usernameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
@@ -41,6 +42,7 @@ class _SignupScreenState extends State<SignupScreen> {
 
   void _submit() {
     if (_formKey.currentState!.validate()) {
+      final username = _usernameController.text.trim();
       final email = _emailController.text.trim();
       final password = _passwordController.text;
 
@@ -49,14 +51,17 @@ class _SignupScreenState extends State<SignupScreen> {
         return;
       }
 
-      // Save the new user to the mock database
-      mockDB.addUser(email, password);
+      if (mockDB.usernameExists(username)) {
+        _showDialog("This username is already taken. Please try again.");
+        return;
+      }
 
-      // Navigate to the dashboard after successful signup
+      mockDB.addUser(username, email, password);
+
       Navigator.pushNamed(
         context,
         '/dashboard',
-        arguments: {'email': email},
+        arguments: {'email': email, 'username': username},
       );
     }
   }
@@ -108,9 +113,14 @@ class _SignupScreenState extends State<SignupScreen> {
                 const SizedBox(height: 16),
                 _buildInputField('Your name', controller: _nameController),
                 _buildInputField('Date of Birth', controller: _dobController),
+                _buildInputField('Username', controller: _usernameController, validator: (value) {
+                  if (value == null || value.isEmpty) return "This field cannot be blank";
+                  if (value.contains(' ')) return "Username cannot contain spaces";
+                  return null;
+                }),
                 _buildInputField('Email address', controller: _emailController, validator: (value) {
                   if (value == null || value.isEmpty) return "This field cannot be blank";
-                  final emailRegex = RegExp(r"^[\w\-.]+@([\w\-]+\.)+[\w\-]{2,}$");
+                  final emailRegex = RegExp(r"^[\w\-.]+@([\w\-]+\.)+[\w\-]{2,}");
                   if (!emailRegex.hasMatch(value)) return "Please enter a valid email address";
                   return null;
                 }),
