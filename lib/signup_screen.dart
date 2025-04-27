@@ -1,83 +1,90 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
   @override
-  State<SignupScreen> createState() => _SignupScreenState();
+  _SignupScreenState createState() => _SignupScreenState();
 }
 
 class _SignupScreenState extends State<SignupScreen> {
-  final _formKey = GlobalKey<FormState>();
-  final _nameController = TextEditingController();
-  final _dobController = TextEditingController();
-  final _usernameController = TextEditingController();
-  final _emailController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _confirmPasswordController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _dobController = TextEditingController();
+  final TextEditingController _usernameController = TextEditingController();
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final TextEditingController _confirmPasswordController = TextEditingController();
 
-  String? _passwordStrength;
-  Color? _strengthColor;
+  final MockDatabase _db = MockDatabase();
 
-  final mockDB = MockDatabase();
+  void _signup() {
+    final name = _nameController.text.trim();
+    final dob = _dobController.text.trim();
+    final username = _usernameController.text.trim();
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
 
-  void _checkPasswordStrength(String password) {
-    if (password.length < 8) {
-      _passwordStrength = "Too short";
-      _strengthColor = Colors.red;
-    } else if (!RegExp(r'[A-Z]').hasMatch(password) ||
-        !RegExp(r'[0-9]').hasMatch(password)) {
-      _passwordStrength = "Weak";
-      _strengthColor = Colors.orange;
-    } else if (!RegExp(r'[@#\\$%^&+=!]').hasMatch(password)) {
-      _passwordStrength = "Medium";
-      _strengthColor = Colors.yellow[800];
-    } else {
-      _passwordStrength = "Strong";
-      _strengthColor = Colors.green;
+    if (name.isEmpty || dob.isEmpty || username.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+      _showError('Please fill in all fields.');
+      return;
     }
+
+    if (password != confirmPassword) {
+      _showError('Passwords do not match.');
+      return;
+    }
+
+    if (_db.isUsernameExists(username)) {
+      _showError('Username already exists.');
+      return;
+    }
+
+    if (_db.isEmailExists(email)) {
+      _showError('Email already exists.');
+      return;
+    }
+
+    _db.registerUser(username, email, password);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Signup successful! Please log in.')),
+    );
+
+    Navigator.pop(context); // Back to login
   }
 
-  void _submit() {
-    if (_formKey.currentState!.validate()) {
-      final username = _usernameController.text.trim();
-      final email = _emailController.text.trim();
-      final password = _passwordController.text;
-
-      if (mockDB.emailExists(email)) {
-        _showDialog("This email has been used. Please try again.");
-        return;
-      }
-
-      if (mockDB.usernameExists(username)) {
-        _showDialog("This username is already taken. Please try again.");
-        return;
-      }
-
-      mockDB.addUser(username, email, password);
-
-      Navigator.pushNamed(
-        context,
-        '/dashboard',
-        arguments: {'email': email, 'username': username},
-      );
-    }
-  }
-
-  void _showDialog(String message) {
+  void _showError(String message) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Error"),
+      builder: (context) => AlertDialog(
+        title: Text('Signup Error'),
         content: Text(message),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("OK"),
+            child: Text('OK'),
+            onPressed: () => Navigator.of(context).pop(),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildInputField(TextEditingController controller, String hintText, {bool obscure = false}) {
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      decoration: InputDecoration(
+        hintText: hintText,
+        filled: true,
+        fillColor: Colors.green[50],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
       ),
     );
   }
@@ -85,111 +92,68 @@ class _SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFDE7),
-      body: Center(
+      backgroundColor: const Color(0xFFFEFBEA),
+      body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Together!',
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 60),
+              Text(
+                'Together!',
+                style: GoogleFonts.poppins(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal[800],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Let\'s begin',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  color: Colors.teal[800],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              _buildInputField(_nameController, 'Your name'),
+              const SizedBox(height: 20),
+              _buildInputField(_dobController, 'Date of Birth'),
+              const SizedBox(height: 20),
+              _buildInputField(_usernameController, 'Username'),
+              const SizedBox(height: 20),
+              _buildInputField(_emailController, 'Email address'),
+              const SizedBox(height: 20),
+              _buildInputField(_passwordController, 'Password', obscure: true),
+              const SizedBox(height: 20),
+              _buildInputField(_confirmPasswordController, 'Confirm Password', obscure: true),
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: _signup,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white, // white text
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                child: const Text('BEGIN'),
+              ),
+              const SizedBox(height: 10),
+              TextButton(
+                onPressed: () {
+                  Navigator.pop(context); // 🡐 BACK button logic
+                },
+                child: Text(
+                  'Back to Login',
                   style: GoogleFonts.poppins(
-                    fontSize: 32,
                     fontWeight: FontWeight.bold,
-                    color: Colors.teal,
+                    color: Colors.teal[800],
                   ),
                 ),
-                const SizedBox(height: 24),
-                Text(
-                  "Let's begin",
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _buildInputField('Your name', controller: _nameController),
-                _buildInputField('Date of Birth', controller: _dobController),
-                _buildInputField('Username', controller: _usernameController, validator: (value) {
-                  if (value == null || value.isEmpty) return "This field cannot be blank";
-                  if (value.contains(' ')) return "Username cannot contain spaces";
-                  return null;
-                }),
-                _buildInputField('Email address', controller: _emailController, validator: (value) {
-                  if (value == null || value.isEmpty) return "This field cannot be blank";
-                  final emailRegex = RegExp(r"^[\w\-.]+@([\w\-]+\.)+[\w\-]{2,}");
-                  if (!emailRegex.hasMatch(value)) return "Please enter a valid email address";
-                  return null;
-                }),
-                _buildInputField('Password', obscureText: true, controller: _passwordController, onChanged: (val) {
-                  setState(() {
-                    _checkPasswordStrength(val);
-                  });
-                }, validator: (value) {
-                  if (value == null || value.isEmpty) return "This field cannot be blank";
-                  if (value.length < 8) return "Password can't be shorter than 8 characters.";
-                  return null;
-                }),
-                if (_passwordStrength != null)
-                  Row(
-                    children: [
-                      Text("Password: $_passwordStrength", style: TextStyle(color: _strengthColor)),
-                    ],
-                  ),
-                _buildInputField('Confirm Password', obscureText: true, controller: _confirmPasswordController, validator: (value) {
-                  if (value == null || value.isEmpty) return "This field cannot be blank";
-                  if (value != _passwordController.text) return "Passwords do not match";
-                  return null;
-                }),
-                const SizedBox(height: 20),
-                ElevatedButton(
-                  onPressed: _submit,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal,
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: Text(
-                    'BEGIN',
-                    style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.w600,
-                      color: Colors.white,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildInputField(String hint,
-      {bool obscureText = false,
-      TextEditingController? controller,
-      String? Function(String?)? validator,
-      void Function(String)? onChanged}) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16),
-      child: TextFormField(
-        controller: controller,
-        obscureText: obscureText,
-        style: GoogleFonts.poppins(),
-        validator: validator ?? (value) => value == null || value.isEmpty ? "This field cannot be blank" : null,
-        onChanged: onChanged,
-        decoration: InputDecoration(
-          hintText: hint,
-          filled: true,
-          fillColor: Colors.greenAccent.withOpacity(0.2),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(10),
-            borderSide: BorderSide.none,
+              ),
+            ],
           ),
         ),
       ),

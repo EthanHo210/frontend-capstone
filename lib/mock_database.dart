@@ -6,41 +6,61 @@ class MockDatabase {
   MockDatabase._internal();
 
   final List<Map<String, String>> _users = [
-    {'username': 'user1', 'email': 'user@example.com', 'password': 'password123'},
-    {'username': 'admin', 'email': 'admin@example.com', 'password': 'adminpass'},
+    {
+      'username': 'testuser',
+      'email': 'user@example.com',
+      'password': 'password123'
+    },
+    {
+      'username': 'admin',
+      'email': 'admin@example.com',
+      'password': 'adminpass'
+    },
   ];
 
-  void addUser(String username, String email, String password) {
-    _users.add({'username': username, 'email': email, 'password': password});
-  }
+  // ✅ Add these 3 methods below
 
-  bool emailExists(String email) {
-    return _users.any((user) => user['email'] == email);
-  }
-
-  bool usernameExists(String username) {
+  bool isUsernameExists(String username) {
     return _users.any((user) => user['username'] == username);
   }
 
-  bool authenticate(String identifier, String password) {
-    return _users.any((user) =>
-      (user['email'] == identifier || user['username'] == identifier) &&
-      user['password'] == password);
+  bool isEmailExists(String email) {
+    return _users.any((user) => user['email'] == email);
   }
 
-  String? getUsernameByEmail(String email) {
-    return _users.firstWhere(
-      (user) => user['email'] == email,
-      orElse: () => {},
-    )['username'];
+  void registerUser(String username, String email, String password) {
+    _users.add({
+      'username': username,
+      'email': email,
+      'password': password,
+    });
   }
 
-  String? getEmailByUsername(String username) {
-    return _users.firstWhere(
-      (user) => user['username'] == username,
-      orElse: () => {},
-    )['email'];
+  bool authenticate(String usernameOrEmail, String password) {
+    for (var user in _users) {
+      if ((user['username'] == usernameOrEmail || user['email'] == usernameOrEmail) && user['password'] == password) {
+        return true;
+      }
+    }
+    return false;
   }
 
-  List<Map<String, String>> getAllUsers() => List.unmodifiable(_users);
+String? getEmailByUsername(String username) {
+  for (var user in _users) {
+    if (user['username'] == username) {
+      return user['email'];
+    }
+  }
+  return null;
+}
+
+String? getUsernameByEmail(String email) {
+  for (var user in _users) {
+    if (user['email'] == email) {
+      return user['username'];
+    }
+  }
+  return null;
+}
+
 }

@@ -1,165 +1,143 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'signup_screen.dart';
-import 'password_reset_screen.dart';
 import 'mock_database.dart';
+import 'package:google_fonts/google_fonts.dart';
+
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  State<LoginScreen> createState() => _LoginScreenState();
+  _LoginScreenState createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final _emailOrUsernameController = TextEditingController();
-  final _passwordController = TextEditingController();
-  final _formKey = GlobalKey<FormState>();
-
-  String? _errorMessage;
-  final mockDB = MockDatabase();
+  final TextEditingController _usernameOrEmailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
+  final MockDatabase _db = MockDatabase();
 
   void _login() {
-    final identifier = _emailOrUsernameController.text.trim();
+    final usernameOrEmail = _usernameOrEmailController.text.trim();
     final password = _passwordController.text;
 
-    if (_formKey.currentState!.validate()) {
-      if (mockDB.authenticate(identifier, password)) {
-        final email = mockDB.getEmailByUsername(identifier) ??
-            (identifier.contains('@') ? identifier : '');
-        final username = mockDB.getUsernameByEmail(identifier) ?? identifier;
-
-        Navigator.pushNamed(
-          context,
-          '/dashboard',
-          arguments: {'email': email, 'username': username},
-        );
-      } else {
-        setState(() {
-          _errorMessage = 'The user or password might be incorrect.';
-        });
-      }
+    if (usernameOrEmail.isEmpty || password.isEmpty) {
+      _showError('Please fill in all fields.');
+      return;
     }
+
+    bool isAuthenticated = _db.authenticate(usernameOrEmail, password);
+
+    if (isAuthenticated) {
+      String? email = _db.getEmailByUsername(usernameOrEmail) ?? usernameOrEmail;
+      String? username = _db.getUsernameByEmail(usernameOrEmail) ?? usernameOrEmail.split('@')[0];
+
+      Navigator.pushReplacementNamed(
+        context,
+        '/dashboard',
+        arguments: {'email': email, 'username': username},
+      );
+    } else {
+      _showError('Invalid username/email or password.');
+    }
+  }
+
+  void _showError(String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('Login Error'),
+        content: Text(message),
+        actions: [
+          TextButton(
+            child: Text('OK'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFFFDE7),
-      body: Center(
+      backgroundColor: const Color(0xFFFEFBEA),
+      body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 32),
-          child: Form(
-            key: _formKey,
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  'Together!',
+          padding: const EdgeInsets.all(24.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const SizedBox(height: 60),
+              Text(
+                'Together!',
+                style: GoogleFonts.poppins(
+                  fontSize: 32,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.teal[800],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Welcome!',
+                style: GoogleFonts.poppins(
+                  fontSize: 20,
+                  color: Colors.teal[800],
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 40),
+              _buildInputField(_usernameOrEmailController, 'Email or Username'),
+              const SizedBox(height: 20),
+              _buildInputField(_passwordController, 'Password', obscure: true),
+              const SizedBox(height: 30),
+              ElevatedButton(
+                onPressed: _login,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.teal,
+                  foregroundColor: Colors.white, // 👉 This makes the text white
+                  textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                child: const Text('SIGN IN'),
+              ),
+              const SizedBox(height: 20),
+              TextButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/signup');
+                },
+                child: const Text('Register if you\'re not a member.'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.pushNamed(context, '/passwordreset');
+                },
+                child: Text(
+                  'Forgot password?',
                   style: GoogleFonts.poppins(
-                    fontSize: 32,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.teal,
+                    fontWeight: FontWeight.w500,
+                    fontSize: 14,
+                    color: Colors.purple, // or any color you are using
                   ),
                 ),
-                const SizedBox(height: 40),
-                Text(
-                  'Welcome!',
-                  style: GoogleFonts.poppins(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: _emailOrUsernameController,
-                  decoration: _inputDecoration('Email or Username'),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'This field cannot be blank';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextFormField(
-                  controller: _passwordController,
-                  obscureText: true,
-                  decoration: _inputDecoration('Password'),
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'This field cannot be blank';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                if (_errorMessage != null)
-                  Text(
-                    _errorMessage!,
-                    style: TextStyle(color: Colors.red),
-                  ),
-                const SizedBox(height: 16),
-                ElevatedButton(
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.teal,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
-                  ),
-                  onPressed: _login,
-                  child: Text(
-                    'SIGN IN',
-                    style: GoogleFonts.poppins(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const SignupScreen()),
-                    );
-                  },
-                  child: Text(
-                    "Register if you're not a member.",
-                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (_) => const PasswordResetScreen()),
-                    );
-                  },
-                  child: Text(
-                    'Forgot password?',
-                    style: GoogleFonts.poppins(fontSize: 14, fontWeight: FontWeight.w600),
-                  ),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  InputDecoration _inputDecoration(String label) {
-    return InputDecoration(
-      labelText: label,
-      labelStyle: GoogleFonts.poppins(),
-      filled: true,
-      fillColor: Colors.greenAccent.withOpacity(0.2),
-      border: OutlineInputBorder(
-        borderRadius: BorderRadius.circular(12),
-        borderSide: BorderSide.none,
+  Widget _buildInputField(TextEditingController controller, String hintText, {bool obscure = false}) {
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      decoration: InputDecoration(
+        hintText: hintText,
+        filled: true,
+        fillColor: Colors.green[50],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
       ),
     );
   }
