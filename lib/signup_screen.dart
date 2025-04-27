@@ -105,7 +105,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Colors.teal[800],
+                  color: Colors.teal,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -114,7 +114,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 'Let\'s begin',
                 style: GoogleFonts.poppins(
                   fontSize: 20,
-                  color: Colors.teal[800],
+                  color: Colors.teal,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -149,7 +149,7 @@ class _SignupScreenState extends State<SignupScreen> {
                   'Back to Login',
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.bold,
-                    color: Colors.teal[800],
+                    color: Colors.teal,
                   ),
                 ),
               ),

@@ -72,7 +72,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 32,
                   fontWeight: FontWeight.bold,
-                  color: Colors.teal[800],
+                  color: Colors.teal,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -81,7 +81,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 'Welcome!',
                 style: GoogleFonts.poppins(
                   fontSize: 20,
-                  color: Colors.teal[800],
+                  color: Colors.teal,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -115,7 +115,6 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w500,
                     fontSize: 14,
-                    color: Colors.purple, // or any color you are using
                   ),
                 ),
               ),

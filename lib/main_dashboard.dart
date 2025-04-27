@@ -29,7 +29,7 @@ class MainDashboard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
-                      color: Colors.teal[800],
+                      color: Colors.teal,
                     ),
                   ),
                   // Profile + Sign Out
@@ -45,7 +45,7 @@ class MainDashboard extends StatelessWidget {
                         Text(
                           username,
                           style: GoogleFonts.poppins(
-                            color: Colors.teal[800],
+                            color: Colors.teal,
                             fontWeight: FontWeight.w500,
                           ),
                         ),
@@ -56,7 +56,7 @@ class MainDashboard extends StatelessWidget {
                             'Sign Out',
                             style: GoogleFonts.poppins(
                               fontWeight: FontWeight.w500,
-                              color: Colors.teal[800],
+                              color: Colors.teal,
                             ),
                           ),
                         ),
@@ -78,7 +78,7 @@ class MainDashboard extends StatelessWidget {
                     style: GoogleFonts.poppins(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: Colors.teal[800],
+                      color: Colors.teal,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -107,7 +107,7 @@ class MainDashboard extends StatelessWidget {
                 style: GoogleFonts.poppins(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.teal[900],
+                  color: Colors.teal,
                 ),
               ),
             ),
@@ -146,14 +146,14 @@ class MainDashboard extends StatelessWidget {
       onTap: onTap,
       child: Column(
         children: [
-          Icon(icon, size: 28, color: Colors.teal[800]),
+          Icon(icon, size: 34, color: Colors.teal),
           const SizedBox(height: 4),
           Text(
             label,
             style: GoogleFonts.poppins(
               fontSize: 10,
               fontWeight: FontWeight.w500,
-              color: Colors.teal[800],
+              color: Colors.teal,
             ),
           ),
         ],

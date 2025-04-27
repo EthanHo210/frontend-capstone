@@ -84,7 +84,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                 decoration: InputDecoration(
                   hintText: 'Email address',
                   filled: true,
-                  fillColor: Colors.greenAccent.withOpacity(0.2),
+                  fillColor: Colors.green[50],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,

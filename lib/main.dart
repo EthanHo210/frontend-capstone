@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
 import 'main_dashboard.dart'; // ✅ new import
+import 'password_reset_screen.dart';
 
 void main() {
   runApp(const TogetherApp());
@@ -26,6 +27,7 @@ class TogetherApp extends StatelessWidget {
         '/login': (context) => const LoginScreen(),
         '/signup': (context) => const SignupScreen(),
         '/dashboard': (context) => const MainDashboard(),
+        '/passwordreset': (context) => const PasswordResetScreen(),
       },
     );
   }
