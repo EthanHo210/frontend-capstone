@@ -135,7 +135,7 @@ class _SignupScreenState extends State<SignupScreen> {
                 onPressed: _signup,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
-                  foregroundColor: Colors.white, // white text
+                  foregroundColor: Colors.white, 
                   textStyle: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 child: const Text('BEGIN'),

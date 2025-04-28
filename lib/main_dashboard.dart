@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'settings_screen.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -10,15 +11,23 @@ class MainDashboard extends StatefulWidget {
 
 class _MainDashboardState extends State<MainDashboard> {
   int _selectedIndex = 0;
+  bool isAdmin = false; 
 
   void _onItemTapped(int index) {
-  setState(() {
-    _selectedIndex = index;
-  });
+    setState(() {
+      _selectedIndex = index;
+    });
 
-  if (index == 0) {
-    Navigator.pushNamed(context, '/start_new_project'); // <-- Add this
-  }
+    if (index == 0) {
+      Navigator.pushNamed(context, '/start_new_project'); 
+    } else if (index == 3) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => SettingsScreen(isAdmin: isAdmin), // pass isAdmin
+          ),
+        );
+      }
 }
 
 
@@ -28,6 +37,8 @@ class _MainDashboardState extends State<MainDashboard> {
     final userEmail = args?['email'] ?? 'Guest';
     final username = args?['username'] ?? userEmail.split('@')[0];
     final isLoggedIn = userEmail != 'Guest';
+  
+    isAdmin = (args?['isAdmin'] ?? 'false') == 'true';
 
     return Scaffold(
       backgroundColor: const Color(0xFFFEFBEA),
@@ -58,14 +69,6 @@ class _MainDashboardState extends State<MainDashboard> {
                   style: GoogleFonts.poppins(
                     color: Colors.teal,
                     fontWeight: FontWeight.w500,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                TextButton(
-                  onPressed: () => Navigator.pushReplacementNamed(context, '/login'),
-                  child: Text(
-                    'Sign Out',
-                    style: GoogleFonts.poppins(color: Colors.teal),
                   ),
                 ),
                 const SizedBox(width: 12),
@@ -107,7 +110,6 @@ class _MainDashboardState extends State<MainDashboard> {
               ),
             ),
             const SizedBox(height: 24),
-            // Optionally, add a little content based on _selectedIndex if needed
           ],
         ),
       ),
@@ -118,9 +120,9 @@ class _MainDashboardState extends State<MainDashboard> {
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         backgroundColor: const Color(0xFFFEFBEA),
-        iconSize: 32, // ⬅️ Bigger icons
-        selectedFontSize: 14, // ⬅️ Bigger selected label text
-        unselectedFontSize: 12, // ⬅️ Unselected label text slightly smaller
+        iconSize: 32, 
+        selectedFontSize: 14, 
+        unselectedFontSize: 12, 
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.lightbulb_outline),

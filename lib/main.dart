@@ -6,6 +6,9 @@ import 'main_dashboard.dart';
 import 'start_new_project.dart';
 import 'password_reset_screen.dart';
 import 'project_planning_screen.dart';
+import 'course_teams_screen.dart';
+import 'pin_verify_screen.dart';
+import 'manage_users_screen.dart';
 
 void main() {
   runApp(const TogetherApp());
@@ -32,6 +35,9 @@ class TogetherApp extends StatelessWidget {
         '/passwordreset': (context) => const PasswordResetScreen(),
         '/start_new_project': (context) => const StartNewProjectScreen(),
         '/projectPlanning': (context) => const ProjectPlanningScreen(),
+        '/courseTeams': (context) => const CourseTeamsScreen(),
+        '/admin_pin': (context) => const PinVerifyScreen(),
+        '/manage_users': (context) => const ManageUsersScreen(),
 
       },
     );

@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'project_planning_screen.dart';
+
 
 class ProjectPlanningScreen extends StatefulWidget {
   const ProjectPlanningScreen({super.key});
@@ -20,11 +20,8 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
   };
 
   void _goNext() {
-    Navigator.push(
-      context,
-      MaterialPageRoute(builder: (context) => const ProjectPlanningScreen()),
-    );
-  }
+    Navigator.pushNamed(context, '/courseTeams');
+}
 
   @override
   Widget build(BuildContext context) {
