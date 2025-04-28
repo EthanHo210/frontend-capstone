@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'login_screen.dart';
 import 'signup_screen.dart';
-import 'main_dashboard.dart'; // ✅ new import
+import 'main_dashboard.dart';
+import 'start_new_project.dart';
 import 'password_reset_screen.dart';
+import 'project_planning_screen.dart';
 
 void main() {
   runApp(const TogetherApp());
@@ -28,6 +30,9 @@ class TogetherApp extends StatelessWidget {
         '/signup': (context) => const SignupScreen(),
         '/dashboard': (context) => const MainDashboard(),
         '/passwordreset': (context) => const PasswordResetScreen(),
+        '/start_new_project': (context) => const StartNewProjectScreen(),
+        '/projectPlanning': (context) => const ProjectPlanningScreen(),
+
       },
     );
   }
