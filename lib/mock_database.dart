@@ -20,9 +20,27 @@ class MockDatabase {
     },
   ];
 
-  final String _adminPin = '1234'; // <-- NEW: Admin PIN stored here
+  final Map<String, Map<String, String>> _userProjects = {
+    'testuser': {
+      'project': 'N/A',
+      'contribution': '0%',
+      'rank': 'Unranked',
+    },
+    'admin': {
+      'project': 'N/A',
+      'contribution': '0%',
+      'rank': 'Unranked',
+    },
+  };
 
-  // --- Existing functions ---
+  Map<String, String>? getProjectInfoForUser(String usernameOrEmail) {
+    return _userProjects[usernameOrEmail];
+  }
+
+  final String _adminPin = '1234'; // Admin PIN stored here
+  String? _currentLoggedInUser; // <-- Store current logged-in user
+
+
   bool isUsernameExists(String username) {
     return _users.any((user) => user['username'] == username);
   }
@@ -34,7 +52,7 @@ class MockDatabase {
   bool isAdmin(String usernameOrEmail) {
     for (var user in _users) {
       if ((user['username'] == usernameOrEmail || user['email'] == usernameOrEmail)) {
-        return user['role'] == 'admin'; // <-- FIXED: you had user['isAdmin'], but your data uses 'role'
+        return user['role'] == 'admin';
       }
     }
     return false;
@@ -45,13 +63,14 @@ class MockDatabase {
       'username': username,
       'email': email,
       'password': password,
-      'role': 'user', // Always default new user role to 'user'
+      'role': 'user',
     });
   }
 
   bool authenticate(String usernameOrEmail, String password) {
     for (var user in _users) {
       if ((user['username'] == usernameOrEmail || user['email'] == usernameOrEmail) && user['password'] == password) {
+        _currentLoggedInUser = usernameOrEmail; // <-- Save who logged in
         return true;
       }
     }
@@ -86,12 +105,67 @@ class MockDatabase {
   }
 
   List<Map<String, dynamic>> getAllUsers() {
-    return List.from(_users); // Return a copy to avoid direct modifications
+    return List.from(_users); // Return a copy
   }
 
   void deleteUser(String username) {
     _users.removeWhere((user) => user['username'] == username);
   }
 
-  String get adminPin => _adminPin; // <-- NEW: expose the admin PIN safely
+  // --- New functions for session ---
+  String get adminPin => _adminPin;
+  String? get currentLoggedInUser => _currentLoggedInUser;
+
+  void logout() {
+    _currentLoggedInUser = null;
+  }
+
+  // --- New functions for updating account info ---
+  bool updateUsername(String newUsername) {
+    if (_currentLoggedInUser == null) return false;
+
+    for (var user in _users) {
+      if (user['username'] == _currentLoggedInUser || user['email'] == _currentLoggedInUser) {
+        user['username'] = newUsername;
+        _currentLoggedInUser = newUsername; // Update current session too
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool updateEmail(String newEmail) {
+    if (_currentLoggedInUser == null) return false;
+
+    for (var user in _users) {
+      if (user['username'] == _currentLoggedInUser || user['email'] == _currentLoggedInUser) {
+        user['email'] = newEmail;
+        _currentLoggedInUser = newEmail; // Update current session too
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool updatePassword(String newPassword) {
+    if (_currentLoggedInUser == null) return false;
+
+    for (var user in _users) {
+      if (user['username'] == _currentLoggedInUser || user['email'] == _currentLoggedInUser) {
+        user['password'] = newPassword;
+        return true;
+      }
+    }
+    return false;
+  }
+
+  void updateProjectInfo(String usernameOrEmail, String project, String contribution, String rank) {
+    if (_userProjects.containsKey(usernameOrEmail)) {
+      _userProjects[usernameOrEmail] = {
+        'project': project,
+        'contribution': contribution,
+        'rank': rank,
+      };
+    }
+  }
 }

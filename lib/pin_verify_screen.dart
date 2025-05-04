@@ -41,12 +41,12 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFEFBEA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Enter Admin PIN', style: GoogleFonts.poppins(color: Colors.teal[800], fontWeight: FontWeight.bold)),
+        title: Text('Enter Admin PIN', style: GoogleFonts.poppins(color: Colors.teal, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.teal[800]),
+        iconTheme: IconThemeData(color: Colors.teal),
       ),
       body: Center(
         child: Padding(

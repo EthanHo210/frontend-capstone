@@ -13,16 +13,24 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
   final TextEditingController _groupSizeController = TextEditingController();
 
   void _confirmProject() {
-    final groupName = _groupNameController.text.trim();
-    final groupSize = _groupSizeController.text.trim();
+  final groupName = _groupNameController.text.trim();
+  final groupSize = _groupSizeController.text.trim();
 
-    if (groupName.isEmpty || groupSize.isEmpty) {
-      _showDialog('Please fill in all fields.');
-      return;
-    }
-
-    _showDialog('Project "$groupName" with $groupSize members created!');
+  if (groupName.isEmpty || groupSize.isEmpty) {
+    _showDialog('Please fill in all fields.');
+    return;
   }
+
+  // Optionally validate that group size is a number
+  if (int.tryParse(groupSize) == null || int.parse(groupSize) <= 0) {
+    _showDialog('Please enter a valid group size.');
+    return;
+  }
+
+  // All good → proceed
+  Navigator.pushNamed(context, '/projectPlanning');
+}
+
 
   void _showDialog(String message) {
     showDialog(
@@ -43,7 +51,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFEFBEA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
@@ -53,7 +61,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
           style: GoogleFonts.poppins(
             fontSize: 24,
             fontWeight: FontWeight.bold,
-            color: Colors.teal[800],
+            color: Colors.teal,
           ),
         ),
       ),
@@ -69,9 +77,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
             const SizedBox(height: 32),
             Center(
               child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/projectPlanning');
-                },
+                onPressed: _confirmProject, // <== THIS FIXES IT
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
                   padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),

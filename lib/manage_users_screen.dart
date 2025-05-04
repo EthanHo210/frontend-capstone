@@ -23,12 +23,12 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     final users = _db.getAllUsers();
 
     return Scaffold(
-      backgroundColor: const Color(0xFFFEFBEA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Manage Users', style: GoogleFonts.poppins(color: Colors.teal[800], fontWeight: FontWeight.bold)),
+        title: Text('Manage Users', style: GoogleFonts.poppins(color: Colors.teal, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.teal[800]),
+        iconTheme: IconThemeData(color: Colors.teal),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),

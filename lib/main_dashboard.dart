@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'settings_screen.dart';
+import 'mock_database.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -11,7 +12,20 @@ class MainDashboard extends StatefulWidget {
 
 class _MainDashboardState extends State<MainDashboard> {
   int _selectedIndex = 0;
-  bool isAdmin = false; 
+  bool isAdmin = false;
+
+  Map<String, String>? _projectInfo;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadProjectInfo();
+  }
+
+  void _loadProjectInfo() {
+    final user = MockDatabase().currentLoggedInUser;
+    _projectInfo = MockDatabase().getProjectInfoForUser(user ?? '');
+  }
 
   void _onItemTapped(int index) {
     setState(() {
@@ -19,17 +33,16 @@ class _MainDashboardState extends State<MainDashboard> {
     });
 
     if (index == 0) {
-      Navigator.pushNamed(context, '/start_new_project'); 
+      Navigator.pushNamed(context, '/start_new_project');
     } else if (index == 3) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => SettingsScreen(isAdmin: isAdmin), // pass isAdmin
-          ),
-        );
-      }
-}
-
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => SettingsScreen(isAdmin: isAdmin),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,11 +50,15 @@ class _MainDashboardState extends State<MainDashboard> {
     final userEmail = args?['email'] ?? 'Guest';
     final username = args?['username'] ?? userEmail.split('@')[0];
     final isLoggedIn = userEmail != 'Guest';
-  
+
     isAdmin = (args?['isAdmin'] ?? 'false') == 'true';
 
+    final projectName = _projectInfo?['project'] ?? 'No project';
+    final contribution = _projectInfo?['contribution'] ?? '0%';
+    final rank = _projectInfo?['rank'] ?? 'Unranked';
+
     return Scaffold(
-      backgroundColor: const Color(0xFFFEFBEA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
@@ -51,7 +68,7 @@ class _MainDashboardState extends State<MainDashboard> {
           style: GoogleFonts.poppins(
             fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: Colors.teal[800],
+            color: Colors.teal,
           ),
         ),
         actions: [
@@ -90,13 +107,28 @@ class _MainDashboardState extends State<MainDashboard> {
               ),
             ),
             const SizedBox(height: 8),
-            Text(
-              'Current Project : ...\nContribution rate : ...\nRank : Frequent Contributor',
-              style: GoogleFonts.poppins(
-                fontSize: 16,
-                fontWeight: FontWeight.normal,
-                color: Colors.black87,
-              ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    'Current Project : $projectName\nContribution Rate : $contribution\nRank : $rank',
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      fontWeight: FontWeight.normal,
+                      color: Colors.teal,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.edit, color: Colors.teal),
+                  tooltip: 'Edit Project Info',
+                  onPressed: () async {
+                    await Navigator.pushNamed(context, '/update_project');
+                    setState(() => _loadProjectInfo()); // Reload project info after editing
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             Center(
@@ -105,7 +137,7 @@ class _MainDashboardState extends State<MainDashboard> {
                 style: GoogleFonts.poppins(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.teal[800],
+                  color: Colors.teal,
                 ),
               ),
             ),
@@ -120,9 +152,9 @@ class _MainDashboardState extends State<MainDashboard> {
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
         backgroundColor: const Color(0xFFFEFBEA),
-        iconSize: 32, 
-        selectedFontSize: 14, 
-        unselectedFontSize: 12, 
+        iconSize: 32,
+        selectedFontSize: 14,
+        unselectedFontSize: 12,
         items: const [
           BottomNavigationBarItem(
             icon: Icon(Icons.lightbulb_outline),

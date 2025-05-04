@@ -26,7 +26,18 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFEFBEA),
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.teal),
+          onPressed: () {
+            Navigator.pop(context); // Go back to StartNewProjectScreen
+          },
+        ),
+      ),
+
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.all(24.0),
@@ -39,7 +50,7 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.teal[900],
+                  color: Colors.teal,
                 ),
               ),
               const SizedBox(height: 20),
@@ -47,7 +58,7 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
                 'Before starting your project, please arrange the project responsibilities.',
                 style: GoogleFonts.poppins(
                   fontSize: 16,
-                  color: Colors.teal[800],
+                  color: Colors.teal,
                 ),
               ),
               const SizedBox(height: 30),
@@ -56,7 +67,7 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
                 style: GoogleFonts.poppins(
                   fontSize: 16,
                   fontWeight: FontWeight.w600,
-                  color: Colors.teal[800],
+                  color: Colors.teal,
                 ),
               ),
               const SizedBox(height: 10),
@@ -68,7 +79,7 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
                         key,
                         style: GoogleFonts.poppins(
                           fontSize: 18,
-                          color: Colors.teal[900],
+                          color: Colors.teal,
                         ),
                       ),
                       value: _responsibilities[key],
