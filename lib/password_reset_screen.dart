@@ -22,7 +22,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
     }
 
     if (_db.isEmailExists(email)) {
-      _showDialog('If this email exists, reset instructions have been sent!');
+      _showDialog('Reset instructions have been sent. Please check your email.');
     } else {
       _showDialog('Email not found. Please try again.');
     }
