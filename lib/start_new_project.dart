@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'mock_database.dart';
 
 class StartNewProjectScreen extends StatefulWidget {
   const StartNewProjectScreen({super.key});
@@ -9,39 +10,54 @@ class StartNewProjectScreen extends StatefulWidget {
 }
 
 class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
-  final TextEditingController _groupNameController = TextEditingController();
-  final TextEditingController _groupSizeController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _membersController = TextEditingController();
+  final TextEditingController _courseNameController = TextEditingController();
+  DateTime? _deadline;
 
-  void _confirmProject() {
-  final groupName = _groupNameController.text.trim();
-  final groupSize = _groupSizeController.text.trim();
+  void _submitProject() {
+    final name = _nameController.text.trim();
+    final members = _membersController.text.trim();
+    final courseName = _courseNameController.text.trim();
 
-  if (groupName.isEmpty || groupSize.isEmpty) {
-    _showDialog('Please fill in all fields.');
-    return;
+    if (name.isEmpty || members.isEmpty || courseName.isEmpty || _deadline == null) {
+      _showError('All fields are required, including the deadline.');
+      return;
+    }
+
+    if (int.tryParse(members) == null) {
+      _showError('Number of users has to be a number.');
+      return;
+    }
+
+    if (int.parse(members) < 1) {
+      _showError('Number of users has to be at least 1.');
+      return;
+    }   
+    
+    final formattedDeadline = _deadline!.toIso8601String();
+
+    MockDatabase().addProject({
+      'name': name,
+      'members': members,
+      'startDate': DateTime.now().toIso8601String(),
+      'deadline': formattedDeadline,
+      'course': courseName,
+    });
+
+    Navigator.pop(context);
   }
 
-  // Optionally validate that group size is a number
-  if (int.tryParse(groupSize) == null || int.parse(groupSize) <= 0) {
-    _showDialog('Please enter a valid group size.');
-    return;
-  }
-
-  // All good → proceed
-  Navigator.pushNamed(context, '/projectPlanning');
-}
-
-
-  void _showDialog(String message) {
+  void _showError(String message) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Start Project', style: GoogleFonts.poppins()),
-        content: Text(message, style: GoogleFonts.poppins()),
+        title: Text('Input Error'),
+        content: Text(message),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('OK', style: GoogleFonts.poppins()),
+            child: Text('OK'),
+            onPressed: () => Navigator.of(context).pop(),
           ),
         ],
       ),
@@ -55,11 +71,13 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: BackButton(color: Colors.teal),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: Colors.teal),
+          onPressed: () => Navigator.pop(context),
+        ),
         title: Text(
           'Start Your Project',
           style: GoogleFonts.poppins(
-            fontSize: 24,
             fontWeight: FontWeight.bold,
             color: Colors.teal,
           ),
@@ -68,30 +86,53 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       body: Padding(
         padding: const EdgeInsets.all(24.0),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const SizedBox(height: 32),
-            _buildInputField(_groupNameController, 'Group Name'),
-            const SizedBox(height: 20),
-            _buildInputField(_groupSizeController, 'Number of Group Members'),
-            const SizedBox(height: 32),
-            Center(
-              child: ElevatedButton(
-                onPressed: _confirmProject, // <== THIS FIXES IT
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
-                  padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(10),
-                  ),
+            _buildInputField(_nameController, 'Group Name'),
+            const SizedBox(height: 16),
+            _buildInputField(_courseNameController, 'Course Name'),
+            const SizedBox(height: 16),
+            _buildInputField(_membersController, 'Number of Group Members'),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, color: Colors.teal),
+                const SizedBox(width: 12),
+                Text(
+                  _deadline != null
+                      ? 'Deadline: ${_deadline!.toLocal().toString().split(' ')[0]}'
+                      : 'Pick Project Deadline',
+                  style: GoogleFonts.poppins(fontSize: 16),
                 ),
-                child: Text(
-                  'CONFIRM',
-                  style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.w600,
-                    fontSize: 16,
-                    color: Colors.white,
-                  ),
+                const Spacer(),
+                IconButton(
+                  icon: const Icon(Icons.date_range, color: Colors.teal),
+                  onPressed: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: DateTime.now(),
+                      firstDate: DateTime.now(),
+                      lastDate: DateTime(2100),
+                    );
+                    if (picked != null) {
+                      setState(() => _deadline = picked);
+                    }
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton(
+              onPressed: _submitProject,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.teal,
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: Text(
+                'CONFIRM',
+                style: GoogleFonts.poppins(
+                  color: Colors.white,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
@@ -101,17 +142,15 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     );
   }
 
-  Widget _buildInputField(TextEditingController controller, String hint) {
+  Widget _buildInputField(TextEditingController controller, String hintText) {
     return TextField(
       controller: controller,
-      keyboardType: hint.contains('Number') ? TextInputType.number : TextInputType.text,
       decoration: InputDecoration(
-        hintText: hint,
-        hintStyle: GoogleFonts.poppins(),
+        hintText: hintText,
         filled: true,
-        fillColor: Colors.greenAccent.withOpacity(0.2),
+        fillColor: Colors.green[50],
         border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
         ),
       ),

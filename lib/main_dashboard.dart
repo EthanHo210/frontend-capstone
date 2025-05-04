@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'settings_screen.dart';
 import 'mock_database.dart';
+import 'project_status_screen.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -23,17 +24,45 @@ class _MainDashboardState extends State<MainDashboard> {
   }
 
   void _loadProjectInfo() {
-    final user = MockDatabase().currentLoggedInUser;
+  final user = MockDatabase().currentLoggedInUser;
+  setState(() {
     _projectInfo = MockDatabase().getProjectInfoForUser(user ?? '');
-  }
+  });
+}
+
 
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
     });
 
+    final usernameOrEmail = MockDatabase().currentLoggedInUser;
+    final projectInfo = MockDatabase().getProjectInfoForUser(usernameOrEmail ?? '') ?? {
+      'project': 'Unknown',
+      'contribution': '0%',
+      'rank': 'Unranked',
+    };
+
     if (index == 0) {
       Navigator.pushNamed(context, '/start_new_project');
+    } else if (index == 1) {
+        Navigator.pushNamed(context, '/courseTeams');
+    } else if (index == 2) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ProjectStatusScreen(
+            projectName: projectInfo['project']!,
+            completionPercentage: projectInfo['contribution']!.replaceAll('%', '').isNotEmpty
+                ? int.tryParse(projectInfo['contribution']!.replaceAll('%', '')) ?? 0
+                : 0,
+            status: projectInfo['contribution']!.replaceAll('%', '') == '0'
+                ? 'Not Started'
+                : 'On-track',
+            courseName: projectInfo['course'] ?? 'N/A',
+          ),
+        ),
+      );
     } else if (index == 3) {
       Navigator.push(
         context,
@@ -53,9 +82,15 @@ class _MainDashboardState extends State<MainDashboard> {
 
     isAdmin = (args?['isAdmin'] ?? 'false') == 'true';
 
-    final projectName = _projectInfo?['project'] ?? 'No project';
-    final contribution = _projectInfo?['contribution'] ?? '0%';
-    final rank = _projectInfo?['rank'] ?? 'Unranked';
+    final projectInfo = _projectInfo ?? {
+      'project': 'No project',
+      'contribution': '0%',
+      'rank': 'Unranked',
+    };
+
+    final projectName = projectInfo['project']!;
+    final contribution = projectInfo['contribution']!;
+    final rank = projectInfo['rank']!;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -125,7 +160,7 @@ class _MainDashboardState extends State<MainDashboard> {
                   tooltip: 'Edit Project Info',
                   onPressed: () async {
                     await Navigator.pushNamed(context, '/update_project');
-                    setState(() => _loadProjectInfo()); // Reload project info after editing
+                    setState(() => _loadProjectInfo());
                   },
                 ),
               ],

@@ -4,9 +4,11 @@ import 'login_screen.dart';
 import 'signup_screen.dart';
 import 'main_dashboard.dart';
 import 'start_new_project.dart';
-import 'password_reset_screen.dart';
-import 'project_planning_screen.dart';
 import 'course_teams_screen.dart';
+import 'project_status_screen.dart';
+import 'project_schedule_screen.dart';
+import 'theme_switch_screen.dart';
+import 'project_planning_screen.dart';
 import 'pin_verify_screen.dart';
 import 'manage_users_screen.dart';
 import 'update_username_screen.dart';
@@ -14,7 +16,7 @@ import 'update_email_screen.dart';
 import 'update_password_screen.dart';
 import 'about_app_screen.dart';
 import 'help_center_screen.dart';
-import 'theme_switch_screen.dart';
+import 'password_reset_screen.dart';
 
 void main() {
   runApp(const TogetherApp());
@@ -55,25 +57,70 @@ class _TogetherAppState extends State<TogetherApp> {
       ),
       themeMode: _themeMode,
       initialRoute: '/login',
-      routes: {
-        '/login': (context) => const LoginScreen(),
-        '/signup': (context) => const SignupScreen(),
-        '/dashboard': (context) => const MainDashboard(),
-        '/passwordreset': (context) => const PasswordResetScreen(),
-        '/start_new_project': (context) => const StartNewProjectScreen(),
-        '/projectPlanning': (context) => const ProjectPlanningScreen(),
-        '/courseTeams': (context) => const CourseTeamsScreen(),
-        '/admin_pin': (context) => const PinVerifyScreen(),
-        '/manage_users': (context) => const ManageUsersScreen(),
-        '/update_username': (context) => const UpdateUsernameScreen(),
-        '/update_email': (context) => const UpdateEmailScreen(),
-        '/update_password': (context) => const UpdatePasswordScreen(),
-        '/about_app': (context) => const AboutAppScreen(),
-        '/help_center': (context) => const HelpCenterScreen(),
-        '/theme_settings': (context) => ThemeSwitchScreen(
-          onToggleTheme: _toggleTheme,
-          isDarkMode: _themeMode == ThemeMode.dark,
-        ),
+      onGenerateRoute: (settings) {
+        switch (settings.name) {
+          case '/projectStatus':
+            final args = settings.arguments as Map<String, dynamic>;
+            return MaterialPageRoute(
+              builder: (_) => ProjectStatusScreen(
+              projectName: args['projectName'],
+              completionPercentage: args['completionPercentage'],
+              status: args['status'],
+              courseName: args['courseName'], // ✅ Add this line
+            ),
+
+            );
+
+          case '/projectSchedule':
+            final args = settings.arguments as Map<String, dynamic>;
+            return MaterialPageRoute(
+              builder: (_) => ProjectScheduleScreen(
+                projectName: args['projectName'],
+                membersCount: args['membersCount'],
+                deadline: args['deadline'],
+              ),
+            );
+
+          // fallback routes
+          case '/login':
+            return MaterialPageRoute(builder: (_) => const LoginScreen());
+          case '/signup':
+            return MaterialPageRoute(builder: (_) => const SignupScreen());
+          case '/dashboard':
+            return MaterialPageRoute(builder: (_) => const MainDashboard());
+          case '/start_new_project':
+            return MaterialPageRoute(builder: (_) => const StartNewProjectScreen());
+          case '/projectPlanning':
+            return MaterialPageRoute(builder: (_) => const ProjectPlanningScreen());
+          case '/courseTeams':
+            return MaterialPageRoute(builder: (_) => const CourseTeamsScreen());
+          case '/admin_pin':
+            return MaterialPageRoute(builder: (_) => const PinVerifyScreen());
+          case '/manage_users':
+            return MaterialPageRoute(builder: (_) => const ManageUsersScreen());
+          case '/update_username':
+            return MaterialPageRoute(builder: (_) => const UpdateUsernameScreen());
+          case '/update_email':
+            return MaterialPageRoute(builder: (_) => const UpdateEmailScreen());
+          case '/update_password':
+            return MaterialPageRoute(builder: (_) => const UpdatePasswordScreen());
+          case '/about_app':
+            return MaterialPageRoute(builder: (_) => const AboutAppScreen());
+          case '/help_center':
+            return MaterialPageRoute(builder: (_) => const HelpCenterScreen());
+          case '/theme_settings':
+            return MaterialPageRoute(
+              builder: (_) => ThemeSwitchScreen(
+                onToggleTheme: _toggleTheme,
+                isDarkMode: _themeMode == ThemeMode.dark,
+              ),
+            );
+          case '/passwordreset':
+            return MaterialPageRoute(builder: (_) => const PasswordResetScreen());
+
+          default:
+            return null;
+        }
       },
     );
   }

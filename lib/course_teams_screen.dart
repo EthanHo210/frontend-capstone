@@ -1,139 +1,133 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'mock_database.dart';
+import 'project_status_screen.dart';
 
 class CourseTeamsScreen extends StatelessWidget {
   const CourseTeamsScreen({super.key});
 
-  final List<Map<String, String>> _teams = const [
-    {
-      'name': 'Tang Sect',
-      'status': 'Crisis',
-      'date': 'April 15, 2024',
-    },
-    {
-      'name': 'Beggar Clan',
-      'status': 'On-track',
-      'date': 'April 15, 2024',
-    },
-    {
-      'name': 'Xiaoyao',
-      'status': 'On-track',
-      'date': 'April 15, 2024',
-    },
-  ];
-
-  Color _getStatusColor(String status) {
-    switch (status.toLowerCase()) {
-      case 'on-track':
+  Color getStatusColor(String status) {
+    switch (status) {
+      case 'On-track':
         return Colors.green;
-      case 'crisis':
-        return Colors.redAccent;
-      case 'delayed':
+      case 'Delayed':
         return Colors.orange;
+      case 'Crisis':
+        return Colors.red;
       default:
         return Colors.grey;
     }
   }
 
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        leading: BackButton(color: Colors.teal),
-        title: Text(
-          'Course Teams',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
-            color: Colors.teal,
-          ),
+  @override
+Widget build(BuildContext context) {
+  final db = MockDatabase();
+  final projects = db.getAllProjects();
+
+  return Scaffold(
+    backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+    appBar: AppBar(
+      backgroundColor: Colors.transparent,
+      elevation: 0,
+      leading: const BackButton(color: Colors.teal),
+      title: Text(
+        'Course Teams',
+        style: GoogleFonts.poppins(
+          fontWeight: FontWeight.bold,
+          fontSize: 22,
+          color: Colors.teal,
         ),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Course: COSC2999',
-              style: GoogleFonts.poppins(
-                color: Colors.orange[800],
-                fontWeight: FontWeight.w600,
-                fontSize: 16,
+    ),
+    body: Padding(
+      padding: const EdgeInsets.all(16.0),
+      child: projects.isEmpty
+          ? Center(
+              child: Text(
+                'No projects available.\nPlease make one.',
+                textAlign: TextAlign.center,
+                style: GoogleFonts.poppins(
+                  fontSize: 18,
+                  color: Colors.teal,
+                  fontWeight: FontWeight.w500,
+                ),
               ),
-            ),
-            const SizedBox(height: 20),
-            Expanded(
-              child: ListView.separated(
-                itemCount: _teams.length,
-                separatorBuilder: (_, __) => const SizedBox(height: 12),
-                itemBuilder: (context, index) {
-                  final team = _teams[index];
-                  return InkWell(
-                    onTap: () {
-                      // TODO: Navigate to Team Detail Screen
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('${team['name']} tapped'),
-                          duration: const Duration(milliseconds: 800),
+            )
+          : ListView.builder(
+              itemCount: projects.length,
+              itemBuilder: (context, index) {
+                final project = projects[index];
+                final name = project['name'] ?? 'Unknown';
+                final members = project['members'] ?? '0';
+                final startDate = project['startDate'] ?? 'N/A';
+                final deadline = project['deadline'] ?? 'N/A';
+                final status = project['status'] ?? 'Unknown';
+                final course = project['course'] ?? 'N/A';
+
+                return GestureDetector(
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => ProjectStatusScreen(
+                          projectName: project['name']!,
+                          completionPercentage: 0,
+                          status: project['status']!,
+                          courseName: project['course'] ?? 'N/A',
                         ),
-                      );
-                    },
-                    borderRadius: BorderRadius.circular(16),
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Theme.of(context).cardColor,
-                        borderRadius: BorderRadius.circular(16),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black12,
-                            blurRadius: 4,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
                       ),
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                      child: Row(
+                    );
+                  },
+                  child: Card(
+                    margin: const EdgeInsets.symmetric(vertical: 8),
+                    color: Colors.purple[50],
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                team['date'] ?? '',
-                                style: GoogleFonts.poppins(fontSize: 14, color: Colors.grey),
-                              ),
-                              Text(
-                                team['name'] ?? '',
-                                style: GoogleFonts.poppins(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 18,
-                                  color: Theme.of(context).textTheme.bodyLarge?.color,
-                                ),
-                              ),
-                              Text(
-                                'Status: ${team['status']}',
-                                style: GoogleFonts.poppins(
-                                  color: _getStatusColor(team['status'] ?? ''),
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ],
+                          Text(
+                            name,
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
                           ),
-                          const Spacer(),
-                          const Icon(Icons.directions_run, color: Colors.teal, size: 28),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Course: $course',
+                            style: GoogleFonts.poppins(
+                              fontSize: 14,
+                              color: Colors.teal,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Start Date: $startDate\nDeadline: $deadline',
+                            style: GoogleFonts.poppins(fontSize: 12),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            'Status: $status',
+                            style: GoogleFonts.poppins(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 13,
+                              color: getStatusColor(status),
+                            ),
+                          ),
                         ],
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                );
+              },
             ),
-          ],
-        ),
-      ),
-    );
-  }
+    ),
+  );
+}
+
 }

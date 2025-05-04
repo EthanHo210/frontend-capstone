@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'mock_database.dart';
 import 'package:google_fonts/google_fonts.dart';
 
-
 class SignupScreen extends StatefulWidget {
   const SignupScreen({super.key});
 
@@ -15,6 +14,7 @@ class _SignupScreenState extends State<SignupScreen> {
   final TextEditingController _dobController = TextEditingController();
   final TextEditingController _usernameController = TextEditingController();
   final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _courseController = TextEditingController(); // NEW
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
 
@@ -25,10 +25,11 @@ class _SignupScreenState extends State<SignupScreen> {
     final dob = _dobController.text.trim();
     final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
+    final course = _courseController.text.trim();
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    if (name.isEmpty || dob.isEmpty || username.isEmpty || email.isEmpty || password.isEmpty || confirmPassword.isEmpty) {
+    if ([name, dob, username, email, course, password, confirmPassword].any((e) => e.isEmpty)) {
       _showError('Please fill in all fields.');
       return;
     }
@@ -48,13 +49,13 @@ class _SignupScreenState extends State<SignupScreen> {
       return;
     }
 
-    _db.registerUser(username, email, password);
+    _db.registerUser(username, email, password); // UPDATED
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('Signup successful! Please log in.')),
     );
 
-    Navigator.pop(context); // Back to login
+    Navigator.pop(context); // Go back to login
   }
 
   void _showError(String message) {
@@ -135,16 +136,14 @@ class _SignupScreenState extends State<SignupScreen> {
                 onPressed: _signup,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.teal,
-                  foregroundColor: Colors.white, 
+                  foregroundColor: Colors.white,
                   textStyle: const TextStyle(fontWeight: FontWeight.bold),
                 ),
                 child: const Text('BEGIN'),
               ),
               const SizedBox(height: 10),
               TextButton(
-                onPressed: () {
-                  Navigator.pop(context); // 🡐 BACK button logic
-                },
+                onPressed: () => Navigator.pop(context),
                 child: Text(
                   'Back to Login',
                   style: GoogleFonts.poppins(
