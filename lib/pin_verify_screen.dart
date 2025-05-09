@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
+import 'app_colors.dart';
 
 class PinVerifyScreen extends StatefulWidget {
   const PinVerifyScreen({super.key});
@@ -43,10 +44,10 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Enter Admin PIN', style: GoogleFonts.poppins(color: Colors.teal, fontWeight: FontWeight.bold)),
+        title: Text('Enter Admin PIN', style: GoogleFonts.poppins(color: AppColors.blueText, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.teal),
+        iconTheme: IconThemeData(color: AppColors.blueText),
       ),
       body: Center(
         child: Padding(
@@ -72,7 +73,7 @@ class _PinVerifyScreenState extends State<PinVerifyScreen> {
               ElevatedButton(
                 onPressed: _verifyPin,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
+                  backgroundColor: AppColors.blueText,
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
                 ),
                 child: Text('Verify', style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold)),

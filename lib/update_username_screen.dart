@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
+import 'app_colors.dart';
+
 
 class UpdateUsernameScreen extends StatefulWidget {
   const UpdateUsernameScreen({super.key});
@@ -34,7 +36,7 @@ class _UpdateUsernameScreenState extends State<UpdateUsernameScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: GoogleFonts.poppins()),
-        backgroundColor: Colors.teal,
+        backgroundColor: AppColors.blueText,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
@@ -50,12 +52,12 @@ class _UpdateUsernameScreenState extends State<UpdateUsernameScreen> {
           'Update Username',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: Colors.teal,
+            color: AppColors.blueText,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.teal),
+        iconTheme: IconThemeData(color: AppColors.blueText),
       ),
       body: Center(
         child: Padding(
@@ -81,7 +83,7 @@ class _UpdateUsernameScreenState extends State<UpdateUsernameScreen> {
               ElevatedButton(
                 onPressed: _updateUsername,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
+                  backgroundColor: AppColors.blueText,
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

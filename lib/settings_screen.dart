@@ -1,13 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'mock_database.dart';
+import 'app_colors.dart';
 
 class SettingsScreen extends StatelessWidget {
-  final bool isAdmin; 
+  final bool isAdmin;
 
   const SettingsScreen({super.key, required this.isAdmin});
 
   @override
   Widget build(BuildContext context) {
+    final db = MockDatabase();
+    final role = db.getUserRole(db.currentLoggedInUser ?? '');
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -15,12 +20,12 @@ class SettingsScreen extends StatelessWidget {
           'Settings',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: Colors.teal,
+            color: AppColors.blueText,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.teal),
+        iconTheme: IconThemeData(color: AppColors.blueText),
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -30,33 +35,33 @@ class SettingsScreen extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.teal,
+              color: AppColors.blueText,
             ),
           ),
           const SizedBox(height: 10),
           _buildSettingsTile(
-            context, 
-            icon: Icons.person, 
-            title: 'Update Username', 
+            context,
+            icon: Icons.person,
+            title: 'Update Username',
             onTap: () {
-              Navigator.pushNamed(context, '/update_username'); // <-- Navigate to Update Username
-            }
+              Navigator.pushNamed(context, '/update_username');
+            },
           ),
           _buildSettingsTile(
-            context, 
-            icon: Icons.email, 
-            title: 'Update Email', 
+            context,
+            icon: Icons.email,
+            title: 'Update Email',
             onTap: () {
-              Navigator.pushNamed(context, '/update_email'); // <-- Navigate to Update Email
-            }
+              Navigator.pushNamed(context, '/update_email');
+            },
           ),
           _buildSettingsTile(
-            context, 
-            icon: Icons.lock, 
-            title: 'Change Password', 
+            context,
+            icon: Icons.lock,
+            title: 'Change Password',
             onTap: () {
-              Navigator.pushNamed(context, '/update_password'); // <-- Navigate to Update Password
-            }
+              Navigator.pushNamed(context, '/update_password');
+            },
           ),
 
           const SizedBox(height: 30),
@@ -66,25 +71,23 @@ class SettingsScreen extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: Colors.teal,
+              color: AppColors.blueText,
             ),
           ),
           const SizedBox(height: 10),
           _buildSettingsTile(
-            context, 
-            icon: Icons.notifications, 
-            title: 'Notifications', 
-            onTap: () {
-              // Notifications - feature not added yet
-            }
+            context,
+            icon: Icons.notifications,
+            title: 'Notifications',
+            onTap: () {},
           ),
           _buildSettingsTile(
-            context, 
-            icon: Icons.brightness_6, 
-            title: 'Theme', 
+            context,
+            icon: Icons.brightness_6,
+            title: 'Theme',
             onTap: () {
-              Navigator.pushNamed(context, '/theme_settings'); // << Theme Settings
-            }
+              Navigator.pushNamed(context, '/theme_settings');
+            },
           ),
 
           const SizedBox(height: 30),
@@ -98,7 +101,7 @@ class SettingsScreen extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: Colors.teal,
+                    color: AppColors.blueText,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -107,44 +110,53 @@ class SettingsScreen extends StatelessWidget {
                   icon: Icons.manage_accounts,
                   title: 'Manage Users',
                   onTap: () {
-                    Navigator.pushNamed(context, '/admin_pin'); // <-- Manage Users flow
+                    Navigator.pushNamed(context, '/admin_pin');
                   },
                 ),
                 const SizedBox(height: 30),
               ],
             ),
 
-          Text(
-            'Support',
-            style: GoogleFonts.poppins(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-              color: Colors.teal,
+          if (role != 'admin')
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Support',
+                  style: GoogleFonts.poppins(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.blueText,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                _buildSettingsTile(
+                  context,
+                  icon: Icons.help_outline,
+                  title: 'Help Center',
+                  onTap: () {
+                    Navigator.pushNamed(context, '/help_center');
+                  },
+                ),
+                _buildSettingsTile(
+                  context,
+                  icon: Icons.info_outline,
+                  title: 'About App',
+                  onTap: () {
+                    Navigator.pushNamed(context, '/about_app');
+                  },
+                ),
+              ],
             ),
-          ),
-          const SizedBox(height: 10),
-          _buildSettingsTile(
-            context, 
-            icon: Icons.help_outline, 
-            title: 'Help Center', 
-            onTap: () {
-              Navigator.pushNamed(context, '/help_center'); // << Help Center
-            }
-          ),
-          _buildSettingsTile(
-            context, 
-            icon: Icons.info_outline, 
-            title: 'About App', 
-            onTap: () {
-              Navigator.pushNamed(context, '/about_app'); // <-- About App
-            }
-          ),
+
+          const SizedBox(height: 20),
+
           _buildSettingsTile(
             context,
             icon: Icons.logout,
             title: 'Log Out',
             onTap: () {
-              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false); // Logout
+              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
             },
           ),
         ],
@@ -155,12 +167,12 @@ class SettingsScreen extends StatelessWidget {
   Widget _buildSettingsTile(BuildContext context,
       {required IconData icon, required String title, required VoidCallback onTap}) {
     return ListTile(
-      leading: Icon(icon, color: Colors.teal),
+      leading: Icon(icon, color: AppColors.blueText),
       title: Text(
         title,
         style: GoogleFonts.poppins(
           fontSize: 16,
-          color: Colors.teal,
+          color: AppColors.blueText,
         ),
       ),
       trailing: const Icon(Icons.arrow_forward_ios, size: 16),

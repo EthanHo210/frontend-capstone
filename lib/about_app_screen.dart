@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'app_colors.dart';
+
 
 class AboutAppScreen extends StatelessWidget {
   const AboutAppScreen({super.key});
@@ -13,12 +15,12 @@ class AboutAppScreen extends StatelessWidget {
           'About App',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: Colors.teal,
+            color: AppColors.blueText,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.teal),
+        iconTheme: IconThemeData(color: AppColors.blueText),
       ),
       body: Padding(
         padding: const EdgeInsets.all(24.0),
@@ -27,12 +29,12 @@ class AboutAppScreen extends StatelessWidget {
           children: [
             Text(
               'Together!',
-              style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.teal),
+              style: GoogleFonts.poppins(fontSize: 28, fontWeight: FontWeight.bold, color: AppColors.blueText),
             ),
             const SizedBox(height: 10),
             Text(
               'Version 1.0.0',
-              style: GoogleFonts.poppins(fontSize: 18, color: Colors.teal),
+              style: GoogleFonts.poppins(fontSize: 18, color: AppColors.blueText),
             ),
             const SizedBox(height: 20),
             Text(
@@ -40,7 +42,7 @@ class AboutAppScreen extends StatelessWidget {
               'This platform supports smart team formation, task tracking, and role-based dashboards to improve engagement, '
               'performance, and teaching assessments. Developed as part of an academic capstone project, Together! embodies '
               'the future of digital teamwork and educational support.',
-              style: GoogleFonts.poppins(fontSize: 16, color: Colors.teal),
+              style: GoogleFonts.poppins(fontSize: 16, color: AppColors.blueText),
             ),
           ],
         ),

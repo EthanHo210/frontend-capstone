@@ -1,12 +1,15 @@
 import 'package:flutter/material.dart';
-import 'mock_database.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'mock_database.dart';
+import 'admin_dashboard.dart';
+import 'main_dashboard.dart';
+import 'app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
 
   @override
-  _LoginScreenState createState() => _LoginScreenState();
+  State<LoginScreen> createState() => _LoginScreenState();
 }
 
 class _LoginScreenState extends State<LoginScreen> {
@@ -26,19 +29,23 @@ class _LoginScreenState extends State<LoginScreen> {
     bool isAuthenticated = _db.authenticate(usernameOrEmail, password);
 
     if (isAuthenticated) {
-      String? email = _db.getEmailByUsername(usernameOrEmail) ?? usernameOrEmail;
-      String? username = _db.getUsernameByEmail(usernameOrEmail) ?? usernameOrEmail.split('@')[0];
-      String role = _db.getUserRole(usernameOrEmail);
+      final role = _db.getUserRole(usernameOrEmail);
+      final email = _db.getEmailByUsername(usernameOrEmail) ?? usernameOrEmail;
+      final username = _db.getUsernameByEmail(usernameOrEmail) ?? usernameOrEmail.split('@')[0];
 
-      Navigator.pushReplacementNamed(
-        context,
-        '/dashboard',
-        arguments: {
-          'email': email,
-          'username': username,
-          'isAdmin': (role == 'admin').toString(),
-        },
-      );
+      if (role == 'admin') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+        );
+      } else {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (_) => MainDashboard(),
+          ),
+        );
+      }
     } else {
       _showError('Invalid username/email or password.');
     }
@@ -48,11 +55,11 @@ class _LoginScreenState extends State<LoginScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Login Error'),
+        title: const Text('Login Error'),
         content: Text(message),
         actions: [
           TextButton(
-            child: Text('OK'),
+            child: const Text('OK'),
             onPressed: () => Navigator.of(context).pop(),
           ),
         ],
@@ -75,21 +82,25 @@ class _LoginScreenState extends State<LoginScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const SizedBox(height: 60),
-              Text(
-                'Together!',
-                style: GoogleFonts.poppins(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.teal,
-                ),
-                textAlign: TextAlign.center,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    'Together!',
+                    style: GoogleFonts.poppins(
+                      fontSize: 32,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.blueText,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 16),
               Text(
                 'Welcome!',
                 style: GoogleFonts.poppins(
                   fontSize: 20,
-                  color: Colors.teal,
+                  color: AppColors.blueText,
                 ),
                 textAlign: TextAlign.center,
               ),
@@ -101,7 +112,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ElevatedButton(
                 onPressed: _login,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
+                  backgroundColor: AppColors.blueText,
                   foregroundColor: Colors.white,
                   textStyle: const TextStyle(fontWeight: FontWeight.bold),
                 ),
@@ -109,18 +120,13 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 20),
               TextButton(
-                onPressed: () {
-                  Navigator.pushNamed(context, '/signup');
-                },
-                child: const Text('Register if you\'re not a member.'),
-              ),
-              TextButton(
                 onPressed: _goToResetPassword,
                 child: Text(
                   'Forgot password?',
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w500,
                     fontSize: 14,
+                    color: AppColors.blueText,
                   ),
                 ),
               ),
@@ -138,7 +144,7 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,
-        fillColor: Colors.green[50],
+        fillColor: Colors.blue[50],
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

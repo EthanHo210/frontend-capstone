@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
+import 'app_colors.dart';
+
 
 class UpdateEmailScreen extends StatefulWidget {
   const UpdateEmailScreen({super.key});
@@ -34,7 +36,7 @@ class _UpdateEmailScreenState extends State<UpdateEmailScreen> {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(message, style: GoogleFonts.poppins()),
-        backgroundColor: Colors.teal,
+        backgroundColor: AppColors.blueText,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
       ),
@@ -50,12 +52,12 @@ class _UpdateEmailScreenState extends State<UpdateEmailScreen> {
           'Update Email',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: Colors.teal,
+            color: AppColors.blueText,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.teal),
+        iconTheme: IconThemeData(color: AppColors.blueText),
       ),
       body: Center(
         child: Padding(
@@ -82,7 +84,7 @@ class _UpdateEmailScreenState extends State<UpdateEmailScreen> {
               ElevatedButton(
                 onPressed: _updateEmail,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
+                  backgroundColor: AppColors.blueText,
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

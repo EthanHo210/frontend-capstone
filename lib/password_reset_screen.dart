@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
+import 'app_colors.dart';
 
 class PasswordResetScreen extends StatefulWidget {
   const PasswordResetScreen({super.key});
@@ -62,7 +63,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                     textStyle: const TextStyle(
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
-                      color: Colors.teal,
+                      color: AppColors.blueText,
                     ),
                   ),
                 ),
@@ -74,7 +75,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                   textStyle: const TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
-                    color: Colors.teal,
+                    color: AppColors.blueText,
                   ),
                 ),
               ),
@@ -84,7 +85,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                 decoration: InputDecoration(
                   hintText: 'Email address',
                   filled: true,
-                  fillColor: Colors.green[50],
+                  fillColor: Colors.blue[50],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
@@ -95,7 +96,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
               ElevatedButton(
                 onPressed: _resetPassword,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.teal,
+                  backgroundColor: AppColors.blueText,
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 32),
                 ),
                 child: Text(
@@ -118,7 +119,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color: Colors.teal,
+                    color: AppColors.blueText,
                   ),
                 ),
               ),

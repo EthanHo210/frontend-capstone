@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'settings_screen.dart';
 import 'mock_database.dart';
 import 'project_status_screen.dart';
+import 'app_colors.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -13,61 +14,46 @@ class MainDashboard extends StatefulWidget {
 
 class _MainDashboardState extends State<MainDashboard> {
   int _selectedIndex = 0;
-  bool isAdmin = false;
-
   Map<String, String>? _projectInfo;
+  String _userRole = 'user';
 
   @override
   void initState() {
     super.initState();
-    _loadProjectInfo();
+    _loadUserRoleAndProject();
   }
 
-  void _loadProjectInfo() {
-  final user = MockDatabase().currentLoggedInUser;
-  setState(() {
-    _projectInfo = MockDatabase().getProjectInfoForUser(user ?? '');
-  });
-}
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _loadUserRoleAndProject();
+  }
 
+  void _loadUserRoleAndProject() {
+    final db = MockDatabase();
+    final user = db.currentLoggedInUser ?? '';
+    setState(() {
+      _projectInfo = db.getProjectInfoForUser(user);
+      _userRole = db.getUserRole(user);
+    });
+  }
 
   void _onItemTapped(int index) {
-    setState(() {
-      _selectedIndex = index;
-    });
+    // For student users, Start New is hidden so indexes are shifted
+    final isStudent = _userRole == 'user';
+    final effectiveIndex = isStudent ? index + 1 : index;
 
-    final usernameOrEmail = MockDatabase().currentLoggedInUser;
-    final projectInfo = MockDatabase().getProjectInfoForUser(usernameOrEmail ?? '') ?? {
-      'project': 'Unknown',
-      'contribution': '0%',
-      'rank': 'Unranked',
-    };
-
-    if (index == 0) {
+    if (effectiveIndex == 0 && !isStudent) {
       Navigator.pushNamed(context, '/start_new_project');
-    } else if (index == 1) {
-        Navigator.pushNamed(context, '/courseTeams');
-    } else if (index == 2) {
+    } else if (effectiveIndex == 1) {
+      Navigator.pushNamed(context, '/courseTeams');
+    } else if (effectiveIndex == 2) {
+      return; // Tracking disabled
+    } else if (effectiveIndex == 3) {
       Navigator.push(
         context,
         MaterialPageRoute(
-          builder: (context) => ProjectStatusScreen(
-            projectName: projectInfo['project']!,
-            completionPercentage: projectInfo['contribution']!.replaceAll('%', '').isNotEmpty
-                ? int.tryParse(projectInfo['contribution']!.replaceAll('%', '')) ?? 0
-                : 0,
-            status: projectInfo['contribution']!.replaceAll('%', '') == '0'
-                ? 'Not Started'
-                : 'On-track',
-            courseName: projectInfo['course'] ?? 'N/A',
-          ),
-        ),
-      );
-    } else if (index == 3) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => SettingsScreen(isAdmin: isAdmin),
+          builder: (context) => SettingsScreen(isAdmin: _userRole == 'admin'),
         ),
       );
     }
@@ -75,22 +61,24 @@ class _MainDashboardState extends State<MainDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    final args = ModalRoute.of(context)!.settings.arguments as Map<String, String>?;
-    final userEmail = args?['email'] ?? 'Guest';
-    final username = args?['username'] ?? userEmail.split('@')[0];
+    final db = MockDatabase();
+    final userEmail = db.currentLoggedInUser ?? 'Guest';
+    final username = db.getUsernameByEmail(userEmail) ?? userEmail.split('@')[0];
     final isLoggedIn = userEmail != 'Guest';
-
-    isAdmin = (args?['isAdmin'] ?? 'false') == 'true';
 
     final projectInfo = _projectInfo ?? {
       'project': 'No project',
       'contribution': '0%',
       'rank': 'Unranked',
+      'course': 'N/A',
+      'deadline': '',
     };
 
     final projectName = projectInfo['project']!;
     final contribution = projectInfo['contribution']!;
-    final rank = projectInfo['rank']!;
+    final deadline = projectInfo['deadline'] ?? 'N/A';
+    final completion = int.tryParse(contribution.replaceAll('%', '')) ?? 0;
+    final status = db.calculateStatus(deadline, completion);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -103,76 +91,86 @@ class _MainDashboardState extends State<MainDashboard> {
           style: GoogleFonts.poppins(
             fontSize: 28,
             fontWeight: FontWeight.bold,
-            color: Colors.teal,
+            color: AppColors.blueText,
           ),
         ),
         actions: [
           if (isLoggedIn)
-            Row(
-              children: [
-                CircleAvatar(
-                  radius: 16,
-                  backgroundColor: Colors.teal[100],
-                  child: const Icon(Icons.person, size: 18, color: Colors.teal),
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  username,
-                  style: GoogleFonts.poppins(
-                    color: Colors.teal,
-                    fontWeight: FontWeight.w500,
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Row(
+                children: [
+                  CircleAvatar(
+                    backgroundColor: AppColors.navbar,
+                    child: Text(
+                      username.isNotEmpty ? username[0].toUpperCase() : '?',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.blueText,
+                      ),
+                    ),
                   ),
-                ),
-                const SizedBox(width: 12),
-              ],
+                  const SizedBox(width: 8),
+                  Text(
+                    username,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.w500,
+                      color: AppColors.blueText,
+                    ),
+                  ),
+                ],
+              ),
             ),
         ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'LAST UPDATED',
-              style: GoogleFonts.poppins(
-                fontWeight: FontWeight.bold,
-                fontSize: 16,
-                color: Colors.teal,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    'Current Project : $projectName\nContribution Rate : $contribution\nRank : $rank',
+            const SizedBox(height: 12),
+            Center(
+              child: Column(
+                children: [
+                  Text(
+                    'LAST UPDATED',
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 16,
+                      color: AppColors.blueText,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Current Project: $projectName\n'
+                    'Contribution Rate: $contribution\n'
+                    'Status: $status\n'
+                    'Deadline: $deadline',
+                    textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.normal,
-                      color: Colors.teal,
+                      color: AppColors.blueText,
                     ),
                   ),
-                ),
-                IconButton(
-                  icon: const Icon(Icons.edit, color: Colors.teal),
-                  tooltip: 'Edit Project Info',
-                  onPressed: () async {
-                    await Navigator.pushNamed(context, '/update_project');
-                    setState(() => _loadProjectInfo());
-                  },
-                ),
-              ],
+                  if (_userRole != 'user')
+                    IconButton(
+                      icon: const Icon(Icons.edit, color: AppColors.blueText),
+                      tooltip: 'Edit Project Info',
+                      onPressed: () async {
+                        Navigator.pushNamed(context, '/edit_project', arguments: _projectInfo);
+                      },
+                    ),
+                ],
+              ),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 32),
             Center(
               child: Text(
                 'Your project',
                 style: GoogleFonts.poppins(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.teal,
+                  color: AppColors.blueText,
                 ),
               ),
             ),
@@ -181,33 +179,48 @@ class _MainDashboardState extends State<MainDashboard> {
         ),
       ),
       bottomNavigationBar: BottomNavigationBar(
-        selectedItemColor: Colors.teal,
+        selectedItemColor: AppColors.blueText,
         unselectedItemColor: Colors.grey,
         showUnselectedLabels: true,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        backgroundColor: const Color(0xFFFEFBEA),
+        backgroundColor: AppColors.navbar,
         iconSize: 32,
         selectedFontSize: 14,
         unselectedFontSize: 12,
-        items: const [
-          BottomNavigationBarItem(
-            icon: Icon(Icons.lightbulb_outline),
-            label: 'Start New',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.assignment),
-            label: 'Projects',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.track_changes),
-            label: 'Tracking',
-          ),
-          BottomNavigationBarItem(
-            icon: Icon(Icons.settings),
-            label: 'Settings',
-          ),
-        ],
+        items: _userRole == 'user'
+            ? const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.assignment),
+                  label: 'Projects',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.track_changes),
+                  label: 'Tracking',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ]
+            : const [
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.lightbulb_outline),
+                  label: 'Start New',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.assignment),
+                  label: 'Projects',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.track_changes),
+                  label: 'Tracking',
+                ),
+                BottomNavigationBarItem(
+                  icon: Icon(Icons.settings),
+                  label: 'Settings',
+                ),
+              ],
       ),
     );
   }

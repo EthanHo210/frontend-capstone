@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'mock_database.dart'; // Make sure you have access to your MockDatabase
+import 'mock_database.dart'; 
+import 'app_colors.dart';
 
 class ManageUsersScreen extends StatefulWidget {
   const ManageUsersScreen({super.key});
@@ -25,10 +26,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Manage Users', style: GoogleFonts.poppins(color: Colors.teal, fontWeight: FontWeight.bold)),
+        title: Text('Manage Users', style: GoogleFonts.poppins(color: AppColors.blueText, fontWeight: FontWeight.bold)),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: Colors.teal),
+        iconTheme: IconThemeData(color: AppColors.blueText),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
