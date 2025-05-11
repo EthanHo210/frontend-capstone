@@ -85,14 +85,42 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text(
-                    'Together!',
-                    style: GoogleFonts.poppins(
-                      fontSize: 32,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.blueText,
+                    Text(
+                      'To',
+                      style: GoogleFonts.kavoon(
+                        textStyle: TextStyle(
+                          color: Colors.red,
+                          fontSize: 35,
+                          fontWeight: FontWeight.bold,
+                          fontStyle: FontStyle.italic,
+                          shadows: [
+                            Shadow(
+                              offset: Offset(4.0, 4.0),
+                              blurRadius: 1.5,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
+                    Text(
+                      'gether!',
+                      style: GoogleFonts.kavoon(
+                        textStyle: TextStyle(
+                          color: Color.fromRGBO(42, 49, 129, 1),
+                          fontSize: 35,
+                          fontWeight: FontWeight.bold,
+                          fontStyle: FontStyle.italic,
+                          shadows: [
+                            Shadow(
+                              offset: Offset(4.0, 4.0),
+                              blurRadius: 1.5,
+                              color: Colors.white,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
                 ],
               ),
               const SizedBox(height: 16),

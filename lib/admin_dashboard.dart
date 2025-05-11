@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
 import 'app_colors.dart';
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -23,31 +25,71 @@ class _AdminDashboardState extends State<AdminDashboard> {
         String selectedRole = 'user';
 
         return AlertDialog(
-          title: const Text('Create New User'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(controller: usernameController, decoration: const InputDecoration(labelText: 'Username')),
-              TextField(controller: emailController, decoration: const InputDecoration(labelText: 'Email')),
-              TextField(controller: passwordController, decoration: const InputDecoration(labelText: 'Password')),
-              DropdownButton<String>(
-                value: selectedRole,
-                onChanged: (value) => setState(() => selectedRole = value!),
-                items: ['user', 'teacher', 'admin']
-                    .map((role) => DropdownMenuItem(value: role, child: Text(role)))
-                    .toList(),
-              ),
-            ],
+          title: Text(
+            'Create New User',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildInputField(usernameController, 'Username'),
+                const SizedBox(height: 12),
+                _buildInputField(emailController, 'Email'),
+                const SizedBox(height: 12),
+                _buildInputField(passwordController, 'Password', obscure: true),
+                const SizedBox(height: 12),
+                DropdownButtonFormField<String>(
+                  value: selectedRole,
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.blue[50],
+                    border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      borderSide: BorderSide.none,
+                    ),
+                  ),
+                  onChanged: (value) => setState(() => selectedRole = value!),
+                  items: ['user', 'teacher']
+                      .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                      .toList(),
+                ),
+              ],
+            ),
           ),
           actions: [
             TextButton(
               onPressed: () {
+                final username = usernameController.text.trim();
+                final email = emailController.text.trim();
+                final rawPassword = passwordController.text.trim();
+
+                if (username.isEmpty || email.isEmpty || rawPassword.isEmpty) {
+                  showDialog(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Missing Information'),
+                      content: const Text('All fields are required.'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context),
+                          child: const Text('OK'),
+                        ),
+                      ],
+                    ),
+                  );
+                  return;
+                }
+
+                final hashedPassword = sha256.convert(utf8.encode(rawPassword)).toString();
+
                 db.registerUserWithRole(
-                  usernameController.text.trim(),
-                  emailController.text.trim(),
-                  passwordController.text.trim(),
+                  username,
+                  email,
+                  hashedPassword,
                   selectedRole,
                 );
+
                 setState(() {});
                 Navigator.pop(context);
               },
@@ -59,36 +101,97 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+  Widget _buildInputField(TextEditingController controller, String hintText, {bool obscure = false}) {
+    return TextField(
+      controller: controller,
+      obscureText: obscure,
+      decoration: InputDecoration(
+        hintText: hintText,
+        filled: true,
+        fillColor: Colors.blue[50],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
+
   void _manageUser(String username) {
     final user = db.getUserByUsername(username);
     if (user == null) return;
 
     final emailController = TextEditingController(text: user['email']);
-    final passwordController = TextEditingController(text: user['password']);
+    final passwordController = TextEditingController(); // Empty by default
     String selectedRole = user['role'];
 
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Manage $username'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(controller: emailController, decoration: const InputDecoration(labelText: 'Email')),
-            TextField(controller: passwordController, decoration: const InputDecoration(labelText: 'Password')),
-            DropdownButton<String>(
-              value: selectedRole,
-              onChanged: (value) => setState(() => selectedRole = value!),
-              items: ['user', 'teacher', 'admin']
-                  .map((role) => DropdownMenuItem(value: role, child: Text(role)))
-                  .toList(),
-            ),
-          ],
+        title: Text(
+          'Manage $username',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
+        ),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: emailController,
+                decoration: InputDecoration(
+                  hintText: 'Email',
+                  filled: true,
+                  fillColor: Colors.blue[50],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: passwordController,
+                obscureText: true,
+                decoration: InputDecoration(
+                  hintText: 'New Password (leave blank to keep current)',
+                  filled: true,
+                  fillColor: Colors.blue[50],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              DropdownButtonFormField<String>(
+                value: selectedRole,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.blue[50],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+                onChanged: (value) => setState(() => selectedRole = value!),
+                items: ['user', 'teacher']
+                    .map((role) => DropdownMenuItem(value: role, child: Text(role)))
+                    .toList(),
+              ),
+            ],
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () {
-              db.updateUser(username, emailController.text.trim(), passwordController.text.trim(), selectedRole);
+              final email = emailController.text.trim();
+              final newPassword = passwordController.text.trim();
+
+              final updatedPassword = newPassword.isEmpty
+                  ? user['password'] // keep old one
+                  : sha256.convert(utf8.encode(newPassword)).toString();
+
+              db.updateUser(username, email, updatedPassword, selectedRole);
               setState(() {});
               Navigator.pop(context);
             },
@@ -99,10 +202,32 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
+
   void _deleteUser(String username) {
-    if (username == 'admin') return; // Protect admin account
-    db.deleteUser(username);
-    setState(() {});
+    if (username == 'admin') return;
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Deletion'),
+        content: Text('Do you want to delete the user "$username"?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              db.deleteUser(username);
+              setState(() {});
+              Navigator.pop(context);
+            },
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -150,7 +275,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ListTile(
               title: Text(username, style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
-              subtitle: Text('Email: ${user['email']}\nRole: ${user['role']}', style: GoogleFonts.poppins()),
+              subtitle: Text(
+                'Email: ${user['email']}\nRole: ${user['role']}',
+                style: GoogleFonts.poppins(),
+              ),
               trailing: username == 'admin'
                   ? const Text('(Admin)', style: TextStyle(fontWeight: FontWeight.bold))
                   : Row(

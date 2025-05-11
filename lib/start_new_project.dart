@@ -12,16 +12,28 @@ class StartNewProjectScreen extends StatefulWidget {
 
 class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _membersController = TextEditingController();
   final TextEditingController _courseNameController = TextEditingController();
   DateTime? _deadline;
+  List<String> _selectedUsers = [];
+  List<Map<String, String>> _userList = [];
 
   @override
   void initState() {
     super.initState();
-    final role = MockDatabase().getUserRole(MockDatabase().currentLoggedInUser ?? '');
+    final db = MockDatabase();
+    final role = db.getUserRole(db.currentLoggedInUser ?? '');
     if (role != 'teacher') {
       Future.microtask(() => _showUnauthorized());
+    } else {
+      _userList = db
+          .getAllUsers()
+          .where((u) => u['username'] != 'admin')
+          .map((u) => {
+                'username': u['username'].toString(),
+                'role': u['role'].toString(),
+              })
+          .toList();
+
     }
   }
 
@@ -43,36 +55,32 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
 
   void _submitProject() {
     final name = _nameController.text.trim();
-    final members = _membersController.text.trim();
     final courseName = _courseNameController.text.trim();
+    final db = MockDatabase();
+    final currentUser = db.currentLoggedInUser ?? '';
+    final formattedDeadline = _deadline?.toIso8601String();
 
-    if (name.isEmpty || members.isEmpty || courseName.isEmpty || _deadline == null) {
-      _showError('All fields are required, including the deadline.');
+    if (name.isEmpty || courseName.isEmpty || formattedDeadline == null || _selectedUsers.isEmpty) {
+      _showError('All fields and at least one member are required.');
       return;
     }
 
-    if (int.tryParse(members) == null) {
-      _showError('Number of users has to be a number.');
-      return;
+    // Add current teacher to the members list
+    if (!_selectedUsers.contains(currentUser)) {
+      _selectedUsers.add(currentUser);
     }
 
-    if (int.parse(members) < 1) {
-      _showError('Number of users has to be at least 1.');
-      return;
-    }   
-
-    final formattedDeadline = _deadline!.toIso8601String();
-
-    MockDatabase().addProject({
+    db.addProject({
       'name': name,
-      'members': members,
+      'course': courseName,
       'startDate': DateTime.now().toIso8601String(),
       'deadline': formattedDeadline,
-      'course': courseName,
+      'members': _selectedUsers.join(','),
     });
 
     Navigator.pop(context);
   }
+
 
   void _showError(String message) {
     showDialog(
@@ -118,7 +126,51 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
             const SizedBox(height: 16),
             _buildInputField(_courseNameController, 'Course Name'),
             const SizedBox(height: 16),
-            _buildInputField(_membersController, 'Number of Group Members'),
+            Text(
+              'Add Members to this Project:',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
+            ),
+            const SizedBox(height: 8),
+            DropdownButtonFormField<String>(
+              isExpanded: true,
+              value: null,
+              decoration: InputDecoration(
+                hintText: 'Select a member to add',
+                filled: true,
+                fillColor: Colors.blue[50],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              items: _userList
+                  .where((user) => !_selectedUsers.contains(user['username']))
+                  .map((user) => DropdownMenuItem(
+                        value: user['username'],
+                        child: Text(
+                          user['role'] == 'teacher'
+                              ? '${user['username']} (teacher)'
+                              : user['username']!,
+                          style: GoogleFonts.poppins(),
+                        ),
+                      ))
+                  .toList(),
+              onChanged: (value) {
+                if (value != null && !_selectedUsers.contains(value)) {
+                  setState(() => _selectedUsers.add(value));
+                }
+              },
+            ),
+            Wrap(
+              spacing: 8,
+              children: _selectedUsers.map((user) {
+                final role = _userList.firstWhere((u) => u['username'] == user)['role'];
+                return Chip(
+                  label: Text(role == 'teacher' ? '$user (teacher)' : user),
+                  onDeleted: () => setState(() => _selectedUsers.remove(user)),
+                );
+              }).toList(),
+            ),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -126,7 +178,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
                 const SizedBox(width: 12),
                 Text(
                   _deadline != null
-                      ? 'Deadline: \${_deadline!.toLocal().toString().split(' ')[0]}'
+                      ? 'Deadline: ${_deadline!.toLocal().toString().split(' ')[0]}'
                       : 'Pick Project Deadline',
                   style: GoogleFonts.poppins(fontSize: 16),
                 ),
@@ -174,7 +226,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,
-        fillColor: Colors.green[50],
+        fillColor: Colors.blue[50],
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

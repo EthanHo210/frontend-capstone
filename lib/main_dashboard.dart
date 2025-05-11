@@ -13,7 +13,7 @@ class MainDashboard extends StatefulWidget {
 }
 
 class _MainDashboardState extends State<MainDashboard> {
-  int _selectedIndex = 0;
+  final int _selectedIndex = 0;
   Map<String, String>? _projectInfo;
   String _userRole = 'user';
 
@@ -86,14 +86,48 @@ class _MainDashboardState extends State<MainDashboard> {
         automaticallyImplyLeading: false,
         backgroundColor: Colors.transparent,
         elevation: 0,
-        title: Text(
-          'Together!',
-          style: GoogleFonts.poppins(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: AppColors.blueText,
-          ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'To',
+              style: GoogleFonts.kavoon(
+                textStyle: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 35,
+                  fontWeight: FontWeight.bold,
+                  fontStyle: FontStyle.italic,
+                  shadows: [
+                    Shadow(
+                      offset: Offset(4.0, 4.0),
+                      blurRadius: 1.5,
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Text(
+              'gether!',
+              style: GoogleFonts.kavoon(
+                textStyle: const TextStyle(
+                  color: Color.fromRGBO(42, 49, 129, 1),
+                  fontSize: 35,
+                  fontWeight: FontWeight.bold,
+                  fontStyle: FontStyle.italic,
+                  shadows: [
+                    Shadow(
+                      offset: Offset(4.0, 4.0),
+                      blurRadius: 1.5,
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
+
         actions: [
           if (isLoggedIn)
             Padding(
