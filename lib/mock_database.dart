@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'package:crypto/crypto.dart';
+
 class MockDatabase {
   static final MockDatabase _instance = MockDatabase._internal();
   factory MockDatabase() => _instance;
@@ -7,127 +10,78 @@ class MockDatabase {
     {
       'username': 'testuser1',
       'email': 'user1@example.com',
-      'password': 'password123',
+      'password': sha256.convert(utf8.encode('password123')).toString(),
       'role': 'user',
     },
     {
       'username': 'testuser2',
       'email': 'user2@example.com',
-      'password': 'password123',
+      'password': sha256.convert(utf8.encode('password123')).toString(),
       'role': 'user',
     },
     {
       'username': 'testuser3',
       'email': 'user3@example.com',
-      'password': 'password123',
+      'password': sha256.convert(utf8.encode('password123')).toString(),
       'role': 'user',
     },
     {
       'username': 'teacher1',
       'email': 'teacher@example.com',
-      'password': 'teacherpass',
+      'password': sha256.convert(utf8.encode('teacherpass')).toString(),
       'role': 'teacher',
     },
     {
       'username': 'admin',
       'email': 'admin@example.com',
-      'password': 'adminpass',
+      'password': sha256.convert(utf8.encode('adminpass')).toString(),
       'role': 'admin',
     },
   ];
 
-  final Map<String, Map<String, String>> _userProjects = {
-    'testuser1': {
-      'project': 'N/A',
-      'contribution': '0%',
-      'rank': 'Unranked',
-      'course': 'N/A',
-      'deadline': '',
-    },
-    'testuser2': {
-      'project': 'N/A',
-      'contribution': '0%',
-      'rank': 'Unranked',
-      'course': 'N/A',
-      'deadline': '',
-    },
-    'testuser3': {
-      'project': 'N/A',
-      'contribution': '0%',
-      'rank': 'Unranked',
-      'course': 'N/A',
-      'deadline': '',
-    },
-    'teacher1': {
-      'project': 'N/A',
-      'contribution': '0%',
-      'rank': 'Unranked',
-      'course': 'N/A',
-      'deadline': '',
-    },
-    'admin': {
-      'project': 'N/A',
-      'contribution': '0%',
-      'rank': 'Unranked',
-      'course': 'N/A',
-      'deadline': '',
-    },
-  };
-
-  final List<Map<String, String>> _projects = [];
-
+  final Map<String, Map<String, String>> _userProjects = {};
+  final List<Map<String, dynamic>> _projects = [];
   String? _currentLoggedInUser;
   final String _adminPin = '1234';
 
   void addProject(Map<String, String> projectData) {
-    DateTime deadline = DateTime.parse(projectData['deadline']!);
-    int daysLeft = deadline.difference(DateTime.now()).inDays;
-
-    String status;
-    if (daysLeft > 14) {
-      status = 'On-track';
-    } else if (daysLeft > 7) {
-      status = 'Delayed';
-    } else {
-      status = 'Crisis';
-    }
+    final deadline = DateTime.parse(projectData['deadline']!);
+    final status = calculateStatus(projectData['deadline']!, 0);
+    final members = projectData['members']!.split(',').map((e) => e.trim()).toList();
 
     _projects.add({
       'name': projectData['name']!,
-      'members': projectData['members']!,
+      'members': members,
       'startDate': projectData['startDate']!,
       'deadline': projectData['deadline']!,
       'status': status,
       'course': projectData['course'] ?? 'N/A',
     });
 
-    String? username = _currentLoggedInUser;
-    for (var u in _users) {
-      if (u['email'] == _currentLoggedInUser) {
-        username = u['username'];
-        break;
-      }
+    final username = getUsernameByEmail(_currentLoggedInUser ?? '') ?? _currentLoggedInUser;
+    if (username != null) {
+      _userProjects[username] = {
+        'project': projectData['name']!,
+        'contribution': '0%',
+        'rank': status,
+        'course': projectData['course'] ?? 'N/A',
+        'deadline': projectData['deadline'] ?? '',
+      };
     }
-
-    _userProjects[username!] = {
-      'project': projectData['name']!,
-      'contribution': '0%',
-      'rank': status,
-      'course': projectData['course'] ?? 'N/A',
-      'deadline': projectData['deadline'] ?? '',
-    };
   }
 
-  List<Map<String, String>> getAllProjects() => List.from(_projects);
+  List<Map<String, dynamic>> getAllProjects() => _projects;
 
-  List<Map<String, String>> getProjectsForCurrentUser() {
-    final user = _currentLoggedInUser;
-    if (user == null) return [];
-    return _projects.where((p) => p['owner'] == user).toList();
+  List<Map<String, dynamic>> getProjectsForCurrentUser() {
+    final username = getUsernameByEmail(_currentLoggedInUser ?? '') ?? '';
+    return _projects.where((project) {
+      final members = (project['members'] as List).cast<String>();
+      return members.contains(username);
+    }).toList();
   }
 
   Map<String, String>? getProjectInfoForUser(String usernameOrEmail) {
-    String? username = usernameOrEmail;
+    String username = usernameOrEmail;
     for (var user in _users) {
       if (user['email'] == usernameOrEmail) {
         username = user['username'];
@@ -137,16 +91,50 @@ class MockDatabase {
     return _userProjects[username];
   }
 
-  bool isUsernameExists(String username) =>
-      _users.any((u) => u['username'] == username);
+  void setProjectInfoForUser(String usernameOrEmail, Map<String, dynamic> projectInfo) {
+    String? username = usernameOrEmail;
+    for (var user in _users) {
+      if (user['email'] == usernameOrEmail) {
+        username = user['username'];
+        break;
+      }
+    }
 
-  bool isEmailExists(String email) =>
-      _users.any((u) => u['email'] == email);
+    if (username != null) {
+      _userProjects[username] = {
+        'project': projectInfo['name']?.toString() ?? 'N/A',
+        'contribution': projectInfo['completion']?.toString() ?? '0%',
+        'rank': projectInfo['status']?.toString() ?? 'Unranked',
+        'course': projectInfo['course']?.toString() ?? 'N/A',
+        'deadline': projectInfo['deadline']?.toString() ?? '',
+      };
+    }
+  }
+
+  String calculateStatus(String deadlineStr, int completionPercent) {
+    final deadline = DateTime.tryParse(deadlineStr);
+    if (deadline == null) return 'Unknown';
+
+    final today = DateTime.now();
+    final daysLeft = deadline.difference(today).inDays;
+
+    if (completionPercent >= 100) return 'Completed';
+    if (daysLeft <= 0 && completionPercent < 100) return 'Overdue';
+    if (daysLeft <= 7 && completionPercent < 80) return 'Crisis';
+    if (daysLeft <= 14 && completionPercent < 60) return 'Delayed';
+    return 'On-track';
+  }
 
   bool authenticate(String usernameOrEmail, String password) {
+    final hashedPassword = sha256.convert(utf8.encode(password)).toString();
+
     for (var user in _users) {
+      final stored = user['password'];
+      final matchPlain = stored == password;
+      final matchHashed = stored == hashedPassword;
+
       if ((user['username'] == usernameOrEmail || user['email'] == usernameOrEmail) &&
-          user['password'] == password) {
+          (matchPlain || matchHashed)) {
         _currentLoggedInUser = usernameOrEmail;
         return true;
       }
@@ -154,17 +142,15 @@ class MockDatabase {
     return false;
   }
 
-  void registerUser(String username, String email, String password) {
-    registerUserWithRole(username, email, password, 'user');
-  }
-
-  void registerUserWithRole(String username, String email, String password, String role) {
+  void registerUserWithRole(String username, String email, String rawPassword, String role) {
     if (isUsernameExists(username) || isEmailExists(email)) return;
+
+    final hashedPassword = sha256.convert(utf8.encode(rawPassword)).toString();
 
     _users.add({
       'username': username,
       'email': email,
-      'password': password,
+      'password': hashedPassword,
       'role': role,
     });
 
@@ -177,38 +163,67 @@ class MockDatabase {
     };
   }
 
-  void deleteUser(String username) {
-    if (username == 'admin') return;
-    _users.removeWhere((u) => u['username'] == username);
+  void registerUser(String username, String email, String password) {
+    registerUserWithRole(username, email, password, 'user');
   }
 
-  Map<String, dynamic>? getUserByUsername(String username) {
-    return _users.firstWhere(
-      (user) => user['username'] == username,
-      orElse: () => {},
-    );
-  }
-
-  void updateUser(String username, String email, String password, String role) {
+  void updateUser(String oldUsername, String email, String rawPassword, String role, {String? newUsername}) {
     for (var user in _users) {
-      if (user['username'] == username && username != 'admin') {
+      if (user['username'] == oldUsername && oldUsername != 'admin') {
+        // Update username if newUsername is provided and unique
+        if (newUsername != null && newUsername.isNotEmpty && newUsername != oldUsername && !isUsernameExists(newUsername)) {
+          // Update username in _userProjects
+          if (_userProjects.containsKey(oldUsername)) {
+            _userProjects[newUsername] = _userProjects.remove(oldUsername)!;
+          }
+
+          // Update username in all projects' members
+          for (var project in _projects) {
+            if (project['members'] is List) {
+              project['members'] = (project['members'] as List).map((member) {
+                return member == oldUsername ? newUsername : member;
+              }).toList();
+            }
+          }
+
+          user['username'] = newUsername;
+
+          // Update _currentLoggedInUser if needed
+          if (_currentLoggedInUser == oldUsername) {
+            _currentLoggedInUser = newUsername;
+          }
+        }
+
+        // Update other fields
         user['email'] = email;
-        user['password'] = password;
+        final isAlreadyHashed = rawPassword.length == 64 && !rawPassword.contains(' ');
+        user['password'] = isAlreadyHashed
+            ? rawPassword
+            : sha256.convert(utf8.encode(rawPassword)).toString();
         user['role'] = role;
+
         break;
       }
     }
   }
 
-  String? getEmailByUsername(String username) =>
-      _users.firstWhere((u) => u['username'] == username, orElse: () => {})['email'];
+
+
+  bool isUsernameExists(String username) =>
+      _users.any((u) => u['username'] == username);
+
+  bool isEmailExists(String email) =>
+      _users.any((u) => u['email'] == email);
 
   String? getUsernameByEmail(String email) =>
       _users.firstWhere((u) => u['email'] == email, orElse: () => {})['username'];
 
+  String? getEmailByUsername(String username) =>
+      _users.firstWhere((u) => u['username'] == username, orElse: () => {})['email'];
+
   String getUserRole(String usernameOrEmail) =>
       _users.firstWhere((u) =>
-              u['username'] == usernameOrEmail || u['email'] == usernameOrEmail,
+          u['username'] == usernameOrEmail || u['email'] == usernameOrEmail,
           orElse: () => {'role': 'user'})['role'];
 
   bool isAdmin(String usernameOrEmail) =>
@@ -246,61 +261,29 @@ class MockDatabase {
 
   bool updatePassword(String newPassword) {
     if (_currentLoggedInUser == null) return false;
+
+    final hashedPassword = sha256.convert(utf8.encode(newPassword)).toString();
+
     for (var user in _users) {
       if (user['username'] == _currentLoggedInUser || user['email'] == _currentLoggedInUser) {
-        user['password'] = newPassword;
+        user['password'] = hashedPassword;
         return true;
       }
     }
     return false;
   }
 
-  void updateProjectInfo(String usernameOrEmail, String project, String contribution, String rank, String course) {
-    if (_userProjects.containsKey(usernameOrEmail)) {
-      _userProjects[usernameOrEmail] = {
-        'project': project,
-        'contribution': contribution,
-        'rank': rank,
-        'course': course,
-        'deadline': _userProjects[usernameOrEmail]?['deadline'] ?? '',
-      };
-    }
+
+  void deleteUser(String username) {
+    if (username == 'admin') return;
+    _users.removeWhere((u) => u['username'] == username);
   }
 
-  void setProjectInfoForUser(String usernameOrEmail, Map<String, String> projectInfo) {
-    String? username = usernameOrEmail;
-    for (var user in _users) {
-      if (user['email'] == usernameOrEmail) {
-        username = user['username'];
-        break;
-      }
-    }
+  Map<String, dynamic>? getUserByUsername(String username) =>
+      _users.firstWhere((user) => user['username'] == username, orElse: () => {});
 
-    if (username != null) {
-      _userProjects[username] = {
-        'project': projectInfo['name'] ?? 'N/A',
-        'contribution': projectInfo['completion'] ?? '0%',
-        'rank': projectInfo['status'] ?? 'Unranked',
-        'course': projectInfo['course'] ?? 'N/A',
-        'deadline': projectInfo['deadline'] ?? '',
-      };
-    }
-  }
-
-  String calculateStatus(String deadlineStr, int completionPercent) {
-    final deadline = DateTime.tryParse(deadlineStr);
-    if (deadline == null) return 'Unknown';
-
-    final today = DateTime.now();
-    final daysLeft = deadline.difference(today).inDays;
-
-    if (completionPercent >= 100) return 'Completed';
-    if (daysLeft <= 0 && completionPercent < 100) return 'Overdue';
-    if (daysLeft <= 7 && completionPercent < 80) return 'Crisis';
-    if (daysLeft <= 14 && completionPercent < 60) return 'Delayed';
-
-    return 'On-track';
-  }
+  String? getUserNameById(String id) =>
+      _users.firstWhere((u) => u['username'] == id, orElse: () => {})['username'];
 
   List<Map<String, dynamic>> getAllUsers() => List.from(_users);
   String get adminPin => _adminPin;

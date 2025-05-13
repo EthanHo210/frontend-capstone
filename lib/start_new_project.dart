@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:multi_select_flutter/multi_select_flutter.dart';
 import 'mock_database.dart';
 import 'app_colors.dart';
 
@@ -16,6 +17,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
   DateTime? _deadline;
   List<String> _selectedUsers = [];
   List<Map<String, String>> _userList = [];
+  List<MultiSelectItem<String>> _userItems = [];
 
   @override
   void initState() {
@@ -33,7 +35,12 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
                 'role': u['role'].toString(),
               })
           .toList();
-
+      _userItems = _userList.map((user) {
+        final display = user['role'] == 'teacher'
+            ? '${user['username']} (teacher)'
+            : user['username']!;
+        return MultiSelectItem<String>(user['username']!, display);
+      }).toList();
     }
   }
 
@@ -65,7 +72,6 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       return;
     }
 
-    // Add current teacher to the members list
     if (!_selectedUsers.contains(currentUser)) {
       _selectedUsers.add(currentUser);
     }
@@ -78,9 +84,8 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       'members': _selectedUsers.join(','),
     });
 
-    Navigator.pop(context);
+    Navigator.pop(context, true);
   }
-
 
   void _showError(String message) {
     showDialog(
@@ -96,6 +101,36 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
         ],
       ),
     );
+  }
+
+  Future<void> _pickDeadline() async {
+    final pickedDate = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+    );
+
+    if (pickedDate != null) {
+      final pickedTime = await showTimePicker(
+        context: context,
+        initialTime: TimeOfDay.now(),
+      );
+
+      if (pickedTime != null) {
+        final fullDateTime = DateTime(
+          pickedDate.year,
+          pickedDate.month,
+          pickedDate.day,
+          pickedTime.hour,
+          pickedTime.minute,
+        );
+
+        setState(() {
+          _deadline = fullDateTime;
+        });
+      }
+    }
   }
 
   @override
@@ -131,71 +166,52 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
               style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
             ),
             const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              isExpanded: true,
-              value: null,
-              decoration: InputDecoration(
-                hintText: 'Select a member to add',
-                filled: true,
-                fillColor: Colors.blue[50],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
+            MultiSelectDialogField<String>(
+              items: _userItems,
+              title: const Text("Select Members"),
+              selectedColor: AppColors.blueText,
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.transparent),
               ),
-              items: _userList
-                  .where((user) => !_selectedUsers.contains(user['username']))
-                  .map((user) => DropdownMenuItem(
-                        value: user['username'],
-                        child: Text(
-                          user['role'] == 'teacher'
-                              ? '${user['username']} (teacher)'
-                              : user['username']!,
-                          style: GoogleFonts.poppins(),
-                        ),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null && !_selectedUsers.contains(value)) {
-                  setState(() => _selectedUsers.add(value));
-                }
+              buttonIcon: const Icon(Icons.person_add, color: AppColors.blueText),
+              buttonText: Text(
+                "Select members to add",
+                style: GoogleFonts.poppins(color: AppColors.blueText),
+              ),
+              onConfirm: (values) {
+                setState(() => _selectedUsers = values);
               },
-            ),
-            Wrap(
-              spacing: 8,
-              children: _selectedUsers.map((user) {
-                final role = _userList.firstWhere((u) => u['username'] == user)['role'];
-                return Chip(
-                  label: Text(role == 'teacher' ? '$user (teacher)' : user),
-                  onDeleted: () => setState(() => _selectedUsers.remove(user)),
-                );
-              }).toList(),
+              chipDisplay: MultiSelectChipDisplay(
+                items: _selectedUsers.map((e) {
+                  final role = _userList.firstWhere((u) => u['username'] == e)['role'];
+                  return MultiSelectItem<String>(
+                    e,
+                    role == 'teacher' ? '$e (teacher)' : e,
+                  );
+                }).toList(),
+                onTap: (value) {
+                  setState(() => _selectedUsers.remove(value));
+                },
+              ),
             ),
             const SizedBox(height: 16),
             Row(
               children: [
                 const Icon(Icons.calendar_today, color: AppColors.blueText),
                 const SizedBox(width: 12),
-                Text(
-                  _deadline != null
-                      ? 'Deadline: ${_deadline!.toLocal().toString().split(' ')[0]}'
-                      : 'Pick Project Deadline',
-                  style: GoogleFonts.poppins(fontSize: 16),
+                Expanded(
+                  child: Text(
+                    _deadline != null
+                        ? 'Deadline: ${_deadline!.toLocal().toString().substring(0, 16)}'
+                        : 'Pick Project Deadline',
+                    style: GoogleFonts.poppins(fontSize: 16),
+                  ),
                 ),
-                const Spacer(),
                 IconButton(
                   icon: const Icon(Icons.date_range, color: AppColors.blueText),
-                  onPressed: () async {
-                    final picked = await showDatePicker(
-                      context: context,
-                      initialDate: DateTime.now(),
-                      firstDate: DateTime.now(),
-                      lastDate: DateTime(2100),
-                    );
-                    if (picked != null) {
-                      setState(() => _deadline = picked);
-                    }
-                  },
+                  onPressed: _pickDeadline,
                 ),
               ],
             ),

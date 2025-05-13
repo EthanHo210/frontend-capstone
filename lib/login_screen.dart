@@ -47,7 +47,7 @@ class _LoginScreenState extends State<LoginScreen> {
         );
       }
     } else {
-      _showError('Invalid username/email or password.');
+      _showError('Invalid email or password.');
     }
   }
 
@@ -133,7 +133,7 @@ class _LoginScreenState extends State<LoginScreen> {
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
-              _buildInputField(_usernameOrEmailController, 'Email or Username'),
+              _buildInputField(_usernameOrEmailController, 'Email'),
               const SizedBox(height: 20),
               _buildInputField(_passwordController, 'Password', obscure: true),
               const SizedBox(height: 30),

@@ -117,10 +117,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  void _manageUser(String username) {
-    final user = db.getUserByUsername(username);
+  void _manageUser(String oldUsername) {
+    final user = db.getUserByUsername(oldUsername);
     if (user == null) return;
 
+    final usernameController = TextEditingController(text: oldUsername);
     final emailController = TextEditingController(text: user['email']);
     final passwordController = TextEditingController(); // Empty by default
     String selectedRole = user['role'];
@@ -129,13 +130,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text(
-          'Manage $username',
+          'Manage $oldUsername',
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
         ),
         content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              TextField(
+                controller: usernameController,
+                decoration: InputDecoration(
+                  hintText: 'Username',
+                  filled: true,
+                  fillColor: Colors.blue[50],
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
               TextField(
                 controller: emailController,
                 decoration: InputDecoration(
@@ -184,14 +198,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
         actions: [
           TextButton(
             onPressed: () {
+              final newUsername = usernameController.text.trim();
               final email = emailController.text.trim();
               final newPassword = passwordController.text.trim();
+              final updatedPassword = newPassword.isEmpty ? user['password'] : newPassword;
 
-              final updatedPassword = newPassword.isEmpty
-                  ? user['password'] // keep old one
-                  : sha256.convert(utf8.encode(newPassword)).toString();
+              if (newUsername.isEmpty || email.isEmpty) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Username and Email cannot be empty.')),
+                );
+                return;
+              }
 
-              db.updateUser(username, email, updatedPassword, selectedRole);
+              db.updateUser(oldUsername, email, updatedPassword, selectedRole, newUsername: newUsername);
               setState(() {});
               Navigator.pop(context);
             },
@@ -201,6 +220,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
     );
   }
+
 
 
   void _deleteUser(String username) {
@@ -239,13 +259,46 @@ class _AdminDashboardState extends State<AdminDashboard> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
-        title: Text(
-          'Together!',
-          style: GoogleFonts.poppins(
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
-            color: AppColors.blueText,
-          ),
+        title: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'To',
+              style: GoogleFonts.kavoon(
+                textStyle: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 35,
+                  fontWeight: FontWeight.bold,
+                  fontStyle: FontStyle.italic,
+                  shadows: [
+                    Shadow(
+                      offset: Offset(4.0, 4.0),
+                      blurRadius: 1.5,
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            Text(
+              'gether!',
+              style: GoogleFonts.kavoon(
+                textStyle: const TextStyle(
+                  color: Color.fromRGBO(42, 49, 129, 1),
+                  fontSize: 35,
+                  fontWeight: FontWeight.bold,
+                  fontStyle: FontStyle.italic,
+                  shadows: [
+                    Shadow(
+                      offset: Offset(4.0, 4.0),
+                      blurRadius: 1.5,
+                      color: Colors.white,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
         actions: [
           IconButton(

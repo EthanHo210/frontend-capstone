@@ -73,7 +73,7 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
                   hintText: 'Enter new password',
                   hintStyle: GoogleFonts.poppins(),
                   filled: true,
-                  fillColor: Colors.greenAccent.withOpacity(0.2),
+                  fillColor: Colors.blue[50],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,

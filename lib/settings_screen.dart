@@ -41,22 +41,6 @@ class SettingsScreen extends StatelessWidget {
           const SizedBox(height: 10),
           _buildSettingsTile(
             context,
-            icon: Icons.person,
-            title: 'Update Username',
-            onTap: () {
-              Navigator.pushNamed(context, '/update_username');
-            },
-          ),
-          _buildSettingsTile(
-            context,
-            icon: Icons.email,
-            title: 'Update Email',
-            onTap: () {
-              Navigator.pushNamed(context, '/update_email');
-            },
-          ),
-          _buildSettingsTile(
-            context,
             icon: Icons.lock,
             title: 'Change Password',
             onTap: () {

@@ -1,11 +1,53 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:intl/intl.dart';
 import 'mock_database.dart';
 import 'project_status_screen.dart';
+import 'edit_project_screen.dart';
 import 'app_colors.dart';
 
-class CourseTeamsScreen extends StatelessWidget {
+class CourseTeamsScreen extends StatefulWidget {
   const CourseTeamsScreen({super.key});
+
+  @override
+  State<CourseTeamsScreen> createState() => _CourseTeamsScreenState();
+}
+
+class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
+  final db = MockDatabase();
+  late List<Map<String, dynamic>> projects;
+  late String currentUser;
+  late String username;
+  late bool isTeacher;
+
+  @override
+  void initState() {
+    super.initState();
+    currentUser = db.currentLoggedInUser ?? '';
+    username = db.getUsernameByEmail(currentUser) ?? currentUser;
+    isTeacher = db.isTeacher(currentUser);
+    _loadProjects();
+  }
+
+  void _loadProjects() {
+    final allProjects = db.getAllProjects();
+    projects = allProjects.where((project) {
+      final rawMembers = project['members'];
+      List<String> members;
+      if (rawMembers is String) {
+        members = rawMembers
+            .split(',')
+            .map((id) => id.trim())
+            .where((id) => id.isNotEmpty)
+            .toList();
+      } else if (rawMembers is List) {
+        members = rawMembers.cast<String>();
+      } else {
+        members = [];
+      }
+      return members.contains(username);
+    }).toList();
+  }
 
   Color getStatusColor(String status) {
     switch (status) {
@@ -26,11 +68,6 @@ class CourseTeamsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final db = MockDatabase();
-    final projects = db.getAllProjects();
-    final currentUser = db.currentLoggedInUser ?? '';
-    final isTeacher = db.isTeacher(currentUser);
-
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -65,11 +102,35 @@ class CourseTeamsScreen extends StatelessWidget {
                 itemBuilder: (context, index) {
                   final project = projects[index];
                   final name = project['name'] ?? 'Unknown';
-                  final members = project['members'] ?? '0';
-                  final startDate = project['startDate'] ?? 'N/A';
-                  final deadline = project['deadline'] ?? 'N/A';
-                  final status = project['status'] ?? 'Unknown';
                   final course = project['course'] ?? 'N/A';
+                  final status = project['status'] ?? 'Unknown';
+
+                  final rawStartDate = project['startDate'];
+                  final rawDeadline = project['deadline'];
+
+                  final startDateFormatted = rawStartDate != null
+                      ? DateFormat('yyyy-MM-dd - HH:mm:ss').format(DateTime.parse(rawStartDate))
+                      : 'N/A';
+
+                  final deadlineFormatted = rawDeadline != null
+                      ? DateFormat('yyyy-MM-dd - HH:mm:ss').format(DateTime.parse(rawDeadline))
+                      : 'N/A';
+
+                  final rawMembers = project['members'];
+                  final memberIds = rawMembers is String
+                      ? rawMembers
+                          .split(',')
+                          .map((id) => id.trim())
+                          .where((id) => id.isNotEmpty)
+                          .toList()
+                      : (rawMembers as List<dynamic>).cast<String>();
+
+                  final studentNames = memberIds
+                      .map((id) {
+                        final user = db.getUserNameById(id);
+                        return user != null ? user[0].toUpperCase() + user.substring(1) : 'Unknown';
+                      })
+                      .toList();
 
                   return GestureDetector(
                     onTap: () {
@@ -116,7 +177,7 @@ class CourseTeamsScreen extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  'Start Date: $startDate\nDeadline: $deadline',
+                                  'Start Date: $startDateFormatted\nDeadline: $deadlineFormatted',
                                   style: GoogleFonts.poppins(fontSize: 12),
                                 ),
                                 const SizedBox(height: 4),
@@ -128,6 +189,24 @@ class CourseTeamsScreen extends StatelessWidget {
                                     color: getStatusColor(status),
                                   ),
                                 ),
+                                const SizedBox(height: 6),
+                                if (studentNames.isNotEmpty)
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        'Students:',
+                                        style: GoogleFonts.poppins(
+                                          fontWeight: FontWeight.w600,
+                                          fontSize: 13,
+                                        ),
+                                      ),
+                                      ...studentNames.map((name) => Text(
+                                            '- $name',
+                                            style: GoogleFonts.poppins(fontSize: 12),
+                                          )),
+                                    ],
+                                  ),
                               ],
                             ),
                           ),
@@ -138,12 +217,18 @@ class CourseTeamsScreen extends StatelessWidget {
                               child: IconButton(
                                 icon: const Icon(Icons.edit, color: AppColors.blueText),
                                 tooltip: 'Edit Project',
-                                onPressed: () {
-                                  Navigator.pushNamed(
+                                onPressed: () async {
+                                  final updatedProject = await Navigator.push(
                                     context,
-                                    '/edit_project',
-                                    arguments: project,
+                                    MaterialPageRoute(
+                                      builder: (_) => EditProjectScreen(project: Map<String, dynamic>.from(project)),
+                                    ),
                                   );
+                                  if (updatedProject != null) {
+                                    setState(() {
+                                      _loadProjects();
+                                    });
+                                  }
                                 },
                               ),
                             ),

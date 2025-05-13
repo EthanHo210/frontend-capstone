@@ -10,8 +10,6 @@ import 'theme_switch_screen.dart';
 import 'project_planning_screen.dart';
 import 'pin_verify_screen.dart';
 import 'manage_users_screen.dart';
-import 'update_username_screen.dart';
-import 'update_email_screen.dart';
 import 'update_password_screen.dart';
 import 'about_app_screen.dart';
 import 'help_center_screen.dart';
@@ -19,17 +17,13 @@ import 'password_reset_screen.dart';
 import 'edit_project_screen.dart';
 import 'admin_dashboard.dart';
 import 'mock_database.dart';
+import 'app_colors.dart';
 
 void main() {
   runApp(const TogetherApp());
 }
 
-class AppColors {
-  static const blueText = Color(0xFF2C348B); // Deep logo blue
-  static const redText = Color(0xFFC62828);  // Red for 'T'
-  static const background = Color(0xFFF4F4FD); // Soft lavender
-  static const navbar = Color(0xFFDDE3F5); // Light blue nav bar
-}
+final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
 class TogetherApp extends StatefulWidget {
   const TogetherApp({super.key});
@@ -132,10 +126,6 @@ class _TogetherAppState extends State<TogetherApp> {
             return MaterialPageRoute(builder: (_) => const PinVerifyScreen());
           case '/manage_users':
             return MaterialPageRoute(builder: (_) => const ManageUsersScreen());
-          case '/update_username':
-            return MaterialPageRoute(builder: (_) => const UpdateUsernameScreen());
-          case '/update_email':
-            return MaterialPageRoute(builder: (_) => const UpdateEmailScreen());
           case '/update_password':
             return MaterialPageRoute(builder: (_) => const UpdatePasswordScreen());
           case '/about_app':
@@ -152,7 +142,7 @@ class _TogetherAppState extends State<TogetherApp> {
           case '/passwordreset':
             return MaterialPageRoute(builder: (_) => const PasswordResetScreen());
           case '/edit_project':
-            final args = settings.arguments as Map<String, String>;
+            final args = settings.arguments as Map<String, dynamic>;
             return MaterialPageRoute(
               builder: (_) => EditProjectScreen(project: args),
             );
@@ -160,6 +150,8 @@ class _TogetherAppState extends State<TogetherApp> {
             return null;
         }
       },
+
+      navigatorObservers: [routeObserver],
     );
   }
 }
