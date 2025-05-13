@@ -8,7 +8,6 @@ import 'project_status_screen.dart';
 import 'project_schedule_screen.dart';
 import 'theme_switch_screen.dart';
 import 'project_planning_screen.dart';
-import 'pin_verify_screen.dart';
 import 'manage_users_screen.dart';
 import 'update_password_screen.dart';
 import 'about_app_screen.dart';
@@ -122,8 +121,6 @@ class _TogetherAppState extends State<TogetherApp> {
             return MaterialPageRoute(builder: (_) => const ProjectPlanningScreen());
           case '/courseTeams':
             return MaterialPageRoute(builder: (_) => const CourseTeamsScreen());
-          case '/admin_pin':
-            return MaterialPageRoute(builder: (_) => const PinVerifyScreen());
           case '/manage_users':
             return MaterialPageRoute(builder: (_) => const ManageUsersScreen());
           case '/update_password':
