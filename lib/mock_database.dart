@@ -41,6 +41,7 @@ class MockDatabase {
 
   final Map<String, Map<String, String>> _userProjects = {};
   final List<Map<String, dynamic>> _projects = [];
+  final List<String> _courses = [];
   String? _currentLoggedInUser;
   final String _adminPin = '1234';
 
@@ -284,6 +285,62 @@ class MockDatabase {
 
   String? getUserNameById(String id) =>
       _users.firstWhere((u) => u['username'] == id, orElse: () => {})['username'];
+
+
+  List<String> getAllCourses() => List.from(_courses);
+
+  void addCourse(String courseName) {
+    if (!_courses.contains(courseName)) {
+      _courses.add(courseName);
+    }
+  }
+
+  void deleteCourse(String courseName) {
+    _courses.remove(courseName);
+
+    // Remove from projects
+    for (var project in _projects) {
+      if (project['course'] == courseName) {
+        project['course'] = 'N/A';
+      }
+    }
+
+    // Remove from user project info
+    for (var key in _userProjects.keys) {
+      if (_userProjects[key]?['course'] == courseName) {
+        _userProjects[key]!['course'] = 'N/A';
+      }
+    }
+  }
+
+  void renameCourse(String oldName, String newName) {
+    if (_courses.contains(oldName) && !_courses.contains(newName)) {
+      final index = _courses.indexOf(oldName);
+      _courses[index] = newName;
+
+      for (var project in _projects) {
+        if (project['course'] == oldName) {
+          project['course'] = newName;
+        }
+      }
+
+      for (var key in _userProjects.keys) {
+        if (_userProjects[key]?['course'] == oldName) {
+          _userProjects[key]!['course'] = newName;
+        }
+      }
+    }
+  }
+
+  
+  void removeCourse(String courseName) {
+    _courses.remove(courseName.trim());
+  }
+
+
+  List<String> getCourses() {
+    return List.from(_courses);
+  }
 
   List<Map<String, dynamic>> getAllUsers() => List.from(_users);
   String get adminPin => _adminPin;

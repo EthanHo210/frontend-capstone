@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
-import 'admin_dashboard.dart';
-import 'main_dashboard.dart';
+import 'admin_main_hub_screen.dart'; // ✅ Make sure this exists
+import 'main_dashboard.dart';       // ✅ For both teacher and student for now
 import 'app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -30,20 +30,21 @@ class _LoginScreenState extends State<LoginScreen> {
 
     if (isAuthenticated) {
       final role = _db.getUserRole(usernameOrEmail);
-      final email = _db.getEmailByUsername(usernameOrEmail) ?? usernameOrEmail;
-      final username = _db.getUsernameByEmail(usernameOrEmail) ?? usernameOrEmail.split('@')[0];
 
       if (role == 'admin') {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (_) => const AdminDashboard()),
+          MaterialPageRoute(builder: (_) => const AdminMainHubScreen()),
+        );
+      } else if (role == 'teacher') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => const MainDashboard()),
         );
       } else {
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(
-            builder: (_) => MainDashboard(),
-          ),
+          MaterialPageRoute(builder: (_) => const MainDashboard()), // Optional: StudentDashboard()
         );
       }
     } else {
@@ -85,42 +86,42 @@ class _LoginScreenState extends State<LoginScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                    Text(
-                      'To',
-                      style: GoogleFonts.kavoon(
-                        textStyle: TextStyle(
-                          color: Colors.red,
-                          fontSize: 35,
-                          fontWeight: FontWeight.bold,
-                          fontStyle: FontStyle.italic,
-                          shadows: [
-                            Shadow(
-                              offset: Offset(4.0, 4.0),
-                              blurRadius: 1.5,
-                              color: Colors.white,
-                            ),
-                          ],
-                        ),
+                  Text(
+                    'To',
+                    style: GoogleFonts.kavoon(
+                      textStyle: TextStyle(
+                        color: Colors.red,
+                        fontSize: 35,
+                        fontWeight: FontWeight.bold,
+                        fontStyle: FontStyle.italic,
+                        shadows: [
+                          Shadow(
+                            offset: Offset(4.0, 4.0),
+                            blurRadius: 1.5,
+                            color: Colors.white,
+                          ),
+                        ],
                       ),
                     ),
-                    Text(
-                      'gether!',
-                      style: GoogleFonts.kavoon(
-                        textStyle: TextStyle(
-                          color: Color.fromRGBO(42, 49, 129, 1),
-                          fontSize: 35,
-                          fontWeight: FontWeight.bold,
-                          fontStyle: FontStyle.italic,
-                          shadows: [
-                            Shadow(
-                              offset: Offset(4.0, 4.0),
-                              blurRadius: 1.5,
-                              color: Colors.white,
-                            ),
-                          ],
-                        ),
+                  ),
+                  Text(
+                    'gether!',
+                    style: GoogleFonts.kavoon(
+                      textStyle: TextStyle(
+                        color: const Color.fromRGBO(42, 49, 129, 1),
+                        fontSize: 35,
+                        fontWeight: FontWeight.bold,
+                        fontStyle: FontStyle.italic,
+                        shadows: [
+                          Shadow(
+                            offset: Offset(4.0, 4.0),
+                            blurRadius: 1.5,
+                            color: Colors.white,
+                          ),
+                        ],
                       ),
                     ),
+                  ),
                 ],
               ),
               const SizedBox(height: 16),

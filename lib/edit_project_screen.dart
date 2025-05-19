@@ -15,13 +15,13 @@ class EditProjectScreen extends StatefulWidget {
 
 class _EditProjectScreenState extends State<EditProjectScreen> {
   late TextEditingController _nameController;
-  late TextEditingController _courseController;
-  late DateTime _startDate;
   late DateTime _deadline;
+  String? _selectedCourse;
   List<String> _selectedMembers = [];
 
   final MockDatabase db = MockDatabase();
   late List<Map<String, dynamic>> allStudents;
+  late List<String> availableCourses;
 
   @override
   void initState() {
@@ -32,8 +32,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     }
 
     _nameController = TextEditingController(text: widget.project['name']?.toString() ?? '');
-    _courseController = TextEditingController(text: widget.project['course']?.toString() ?? '');
-    _startDate = DateTime.tryParse(widget.project['startDate']?.toString() ?? '') ?? DateTime.now();
+    _selectedCourse = widget.project['course']?.toString();
     _deadline = DateTime.tryParse(widget.project['deadline']?.toString() ?? '') ?? DateTime.now();
 
     final rawMembers = widget.project['members'];
@@ -42,6 +41,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
         : List<String>.from(rawMembers ?? []);
 
     allStudents = db.getAllUsers().where((user) => user['role'] == 'user').toList();
+    availableCourses = db.getCourses();
   }
 
   void _showUnauthorized() {
@@ -60,12 +60,10 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     );
   }
 
-  Future<void> _pickDateTime(bool isStartDate) async {
-    final initialDate = isStartDate ? _startDate : _deadline;
-
+  Future<void> _pickDateTime() async {
     final pickedDate = await showDatePicker(
       context: context,
-      initialDate: initialDate,
+      initialDate: _deadline,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
     );
@@ -73,7 +71,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     if (pickedDate != null) {
       final pickedTime = await showTimePicker(
         context: context,
-        initialTime: TimeOfDay.fromDateTime(initialDate),
+        initialTime: TimeOfDay.fromDateTime(_deadline),
       );
 
       if (pickedTime != null) {
@@ -86,24 +84,49 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
         );
 
         setState(() {
-          if (isStartDate) {
-            _startDate = fullDateTime;
-          } else {
-            _deadline = fullDateTime;
-          }
+          _deadline = fullDateTime;
         });
       }
     }
   }
 
-  void _saveChanges() {
+  void _confirmSave() {
+    if (_selectedCourse == null || _selectedCourse!.isEmpty) {
+      _showError('Please select a course.');
+      return;
+    }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Confirm Changes'),
+        content: const Text('Are you sure you want to save the changes to this project?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context); // close dialog
+              _performSave();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.blueText),
+            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _performSave() {
     final index = db.getAllProjects().indexWhere((p) => p['name'] == widget.project['name']);
     if (index != -1) {
       final updatedProject = {
         'name': _nameController.text,
-        'course': _courseController.text,
+        'course': _selectedCourse,
         'members': _selectedMembers,
-        'startDate': _startDate.toIso8601String(),
+        'startDate': widget.project['startDate'], // keep unchanged
         'deadline': _deadline.toIso8601String(),
         'status': db.calculateStatus(_deadline.toIso8601String(), 0),
       };
@@ -138,6 +161,22 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     }
   }
 
+  void _showError(String msg) {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(msg),
+        actions: [
+          TextButton(
+            child: const Text('OK'),
+            onPressed: () => Navigator.pop(context),
+          )
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -161,50 +200,101 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
           children: [
             TextField(
               controller: _nameController,
-              decoration: const InputDecoration(labelText: 'Project Name'),
-            ),
-            TextField(
-              controller: _courseController,
-              decoration: const InputDecoration(labelText: 'Course'),
+              decoration: InputDecoration(
+                hintText: 'Group Name',
+                filled: true,
+                fillColor: Colors.blue[50],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
             ),
             const SizedBox(height: 16),
+            DropdownButtonFormField<String>(
+              value: _selectedCourse,
+              items: availableCourses
+                  .map((course) => DropdownMenuItem(value: course, child: Text(course)))
+                  .toList(),
+              onChanged: (value) => setState(() => _selectedCourse = value),
+              decoration: InputDecoration(
+                hintText: 'Select Course',
+                filled: true,
+                fillColor: Colors.blue[50],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Add Members to this Project:',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
+            ),
+            const SizedBox(height: 8),
             MultiSelectDialogField(
               items: allStudents
-                  .map((student) => MultiSelectItem(student['username'], student['username'].toString().capitalize()))
+                  .map((student) =>
+                      MultiSelectItem(student['username'], student['username'].toString().capitalize()))
                   .toList(),
               initialValue: _selectedMembers,
               title: const Text("Select Members"),
-              buttonText: const Text("Edit Members"),
-              searchable: true,
-              listType: MultiSelectListType.LIST,
+              selectedColor: AppColors.blueText,
+              decoration: BoxDecoration(
+                color: Colors.blue[50],
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: Colors.transparent),
+              ),
+              buttonIcon: const Icon(Icons.person_add, color: AppColors.blueText),
+              buttonText: Text(
+                "Select members to add",
+                style: GoogleFonts.poppins(color: AppColors.blueText),
+              ),
               onConfirm: (values) {
                 setState(() {
                   _selectedMembers = List<String>.from(values);
                 });
               },
+              chipDisplay: MultiSelectChipDisplay(
+                items: _selectedMembers
+                    .map((e) => MultiSelectItem<String>(e, e.capitalize()))
+                    .toList(),
+                onTap: (value) {
+                  setState(() => _selectedMembers.remove(value));
+                },
+              ),
             ),
             const SizedBox(height: 16),
-            ListTile(
-              title: const Text("Start Date"),
-              subtitle: Text("${_startDate.toLocal()}".substring(0, 16)),
-              trailing: const Icon(Icons.calendar_today, color: AppColors.blueText),
-              onTap: () => _pickDateTime(true),
-            ),
-            ListTile(
-              title: const Text("Deadline"),
-              subtitle: Text("${_deadline.toLocal()}".substring(0, 16)),
-              trailing: const Icon(Icons.calendar_today, color: AppColors.blueText),
-              onTap: () => _pickDateTime(false),
+            Row(
+              children: [
+                const Icon(Icons.calendar_today, color: AppColors.blueText),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Deadline: ${_deadline.toLocal().toString().substring(0, 16)}',
+                    style: GoogleFonts.poppins(fontSize: 16),
+                  ),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.date_range, color: AppColors.blueText),
+                  onPressed: _pickDateTime,
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _saveChanges,
+              onPressed: _confirmSave,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.blueText,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 12),
               ),
-              child: const Text('Save Changes'),
-            )
+              child: Text(
+                'Save Changes',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+              ),
+            ),
           ],
         ),
       ),

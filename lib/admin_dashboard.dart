@@ -229,26 +229,33 @@ class _AdminDashboardState extends State<AdminDashboard> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Confirm Deletion'),
-        content: Text('Do you want to delete the user "$username"?'),
+        title: Row(
+          children: const [
+            Icon(Icons.warning, color: Colors.red),
+            SizedBox(width: 8),
+            Text('Delete User'),
+          ],
+        ),
+        content: Text('Are you sure you want to permanently delete "$username"? This action cannot be undone.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
             child: const Text('Cancel'),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () {
               db.deleteUser(username);
               setState(() {});
               Navigator.pop(context);
             },
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('Delete'),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
+
 
   @override
   Widget build(BuildContext context) {
@@ -260,8 +267,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
         elevation: 0,
         automaticallyImplyLeading: false,
         title: Row(
-          mainAxisSize: MainAxisSize.min,
           children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back, color: AppColors.blueText),
+              onPressed: () => Navigator.pop(context),
+            ),
+            const SizedBox(width: 4),
             Text(
               'To',
               style: GoogleFonts.kavoon(
@@ -300,17 +311,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: AppColors.blueText),
-            tooltip: 'Log out',
-            onPressed: () {
-              db.logout();
-              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-            },
-          ),
-        ],
       ),
+
       floatingActionButton: FloatingActionButton(
         onPressed: _createNewUser,
         backgroundColor: AppColors.blueText,

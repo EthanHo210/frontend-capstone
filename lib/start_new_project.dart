@@ -13,11 +13,12 @@ class StartNewProjectScreen extends StatefulWidget {
 
 class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
   final TextEditingController _nameController = TextEditingController();
-  final TextEditingController _courseNameController = TextEditingController();
   DateTime? _deadline;
   List<String> _selectedUsers = [];
   List<Map<String, String>> _userList = [];
   List<MultiSelectItem<String>> _userItems = [];
+  String? _selectedCourse;
+  List<String> _availableCourses = [];
 
   @override
   void initState() {
@@ -41,6 +42,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
             : user['username']!;
         return MultiSelectItem<String>(user['username']!, display);
       }).toList();
+      _availableCourses = db.getCourses();
     }
   }
 
@@ -60,17 +62,43 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     );
   }
 
-  void _submitProject() {
+  void _confirmSubmitProject() {
     final name = _nameController.text.trim();
-    final courseName = _courseNameController.text.trim();
-    final db = MockDatabase();
-    final currentUser = db.currentLoggedInUser ?? '';
     final formattedDeadline = _deadline?.toIso8601String();
 
-    if (name.isEmpty || courseName.isEmpty || formattedDeadline == null || _selectedUsers.isEmpty) {
+    if (name.isEmpty || _selectedCourse == null || formattedDeadline == null || _selectedUsers.isEmpty) {
       _showError('All fields and at least one member are required.');
       return;
     }
+
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        title: const Text('Confirm Project Creation'),
+        content: const Text('Are you sure you want to create this project?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _submitProject();
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.blueText),
+            child: const Text('Confirm', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _submitProject() {
+    final name = _nameController.text.trim();
+    final db = MockDatabase();
+    final currentUser = db.currentLoggedInUser ?? '';
+    final formattedDeadline = _deadline?.toIso8601String();
 
     if (!_selectedUsers.contains(currentUser)) {
       _selectedUsers.add(currentUser);
@@ -78,9 +106,9 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
 
     db.addProject({
       'name': name,
-      'course': courseName,
+      'course': _selectedCourse!,
       'startDate': DateTime.now().toIso8601String(),
-      'deadline': formattedDeadline,
+      'deadline': formattedDeadline!,
       'members': _selectedUsers.join(','),
     });
 
@@ -159,7 +187,25 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
           children: [
             _buildInputField(_nameController, 'Group Name'),
             const SizedBox(height: 16),
-            _buildInputField(_courseNameController, 'Course Name'),
+            DropdownButtonFormField<String>(
+              decoration: InputDecoration(
+                hintText: 'Select Course',
+                filled: true,
+                fillColor: Colors.blue[50],
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+              value: _selectedCourse,
+              items: _availableCourses
+                  .map((course) => DropdownMenuItem(
+                        value: course,
+                        child: Text(course),
+                      ))
+                  .toList(),
+              onChanged: (value) => setState(() => _selectedCourse = value),
+            ),
             const SizedBox(height: 16),
             Text(
               'Add Members to this Project:',
@@ -217,7 +263,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
             ),
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _submitProject,
+              onPressed: _confirmSubmitProject,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.blueText,
                 padding: const EdgeInsets.symmetric(vertical: 12),

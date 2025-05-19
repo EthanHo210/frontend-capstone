@@ -148,7 +148,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
             '/projectStatus',
             arguments: {
               'projectName': name,
-              'completionPercentage': 0, // You can pass actual value if available
+              'completionPercentage': 0,
               'status': status,
               'courseName': course,
             },
@@ -183,7 +183,6 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
       );
     }).toList();
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -410,6 +409,14 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                   label: 'Settings',
                 ),
               ],
+      ),
+      floatingActionButton: FloatingActionButton(
+        backgroundColor: AppColors.blueText,
+        onPressed: () {
+          Navigator.pushNamed(context, '/user_logs');
+        },
+        tooltip: 'View Members',
+        child: const Icon(Icons.group),
       ),
     );
   }

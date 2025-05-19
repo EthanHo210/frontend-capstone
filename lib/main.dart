@@ -17,6 +17,7 @@ import 'edit_project_screen.dart';
 import 'admin_dashboard.dart';
 import 'mock_database.dart';
 import 'app_colors.dart';
+import 'user_logs_screen.dart';
 
 void main() {
   runApp(const TogetherApp());
@@ -103,7 +104,6 @@ class _TogetherAppState extends State<TogetherApp> {
 
           case '/login':
             return MaterialPageRoute(builder: (_) => const LoginScreen());
-
           case '/dashboard':
             final db = MockDatabase();
             final user = db.currentLoggedInUser;
@@ -114,7 +114,6 @@ class _TogetherAppState extends State<TogetherApp> {
             } else {
               return MaterialPageRoute(builder: (_) => const MainDashboard());
             }
-
           case '/start_new_project':
             return MaterialPageRoute(builder: (_) => const StartNewProjectScreen());
           case '/projectPlanning':
@@ -143,6 +142,9 @@ class _TogetherAppState extends State<TogetherApp> {
             return MaterialPageRoute(
               builder: (_) => EditProjectScreen(project: args),
             );
+          case '/user_logs':
+            return MaterialPageRoute(builder: (_) => const UserLogsScreen());
+          
           default:
             return null;
         }
