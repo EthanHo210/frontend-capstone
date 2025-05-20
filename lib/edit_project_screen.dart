@@ -90,34 +90,42 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     }
   }
 
-  void _confirmSave() {
+  void _confirmSave() async {
     if (_selectedCourse == null || _selectedCourse!.isEmpty) {
       _showError('Please select a course.');
       return;
     }
 
-    showDialog(
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Confirm Changes'),
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.warning, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('Confirm Changes'),
+          ],
+        ),
         content: const Text('Are you sure you want to save the changes to this project?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context); // close dialog
-              _performSave();
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.blueText),
             child: const Text('Confirm', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
+
+    if (confirmed == true) {
+      _performSave();
+    }
   }
+
 
   void _performSave() {
     final index = db.getAllProjects().indexWhere((p) => p['name'] == widget.project['name']);
