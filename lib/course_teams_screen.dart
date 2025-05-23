@@ -5,15 +5,17 @@ import 'mock_database.dart';
 import 'project_status_screen.dart';
 import 'edit_project_screen.dart';
 import 'app_colors.dart';
+import 'main.dart';
 
 class CourseTeamsScreen extends StatefulWidget {
-  const CourseTeamsScreen({super.key});
+  final String selectedCourse;
+  const CourseTeamsScreen({super.key, required this.selectedCourse});
 
   @override
   State<CourseTeamsScreen> createState() => _CourseTeamsScreenState();
 }
 
-class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
+class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
   final db = MockDatabase();
   late List<Map<String, dynamic>> projects;
   late String currentUser;
@@ -26,12 +28,34 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
     currentUser = db.currentLoggedInUser ?? '';
     username = db.getUsernameByEmail(currentUser) ?? currentUser;
     isTeacher = db.isTeacher(currentUser);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    routeObserver.subscribe(this, ModalRoute.of(context)!);
     _loadProjects();
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    setState(() {
+      _loadProjects();
+    });
   }
 
   void _loadProjects() {
     final allProjects = db.getAllProjects();
     projects = allProjects.where((project) {
+      final course = project['course'] ?? 'N/A';
+      if (course != widget.selectedCourse) return false;
+
       final rawMembers = project['members'];
       List<String> members;
       if (rawMembers is String) {
@@ -75,7 +99,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
         elevation: 0,
         leading: const BackButton(color: AppColors.blueText),
         title: Text(
-          'Course Teams',
+          'Project List',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             fontSize: 22,

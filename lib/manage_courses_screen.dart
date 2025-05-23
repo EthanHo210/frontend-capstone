@@ -12,20 +12,30 @@ class ManageCoursesScreen extends StatefulWidget {
 
 class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
   final db = MockDatabase();
-  final TextEditingController _courseController = TextEditingController();
+  final TextEditingController _prefixController = TextEditingController();
+  final TextEditingController _idController = TextEditingController();
+  final TextEditingController _nameController = TextEditingController();
 
   void _addCourse() {
-    final courseName = _courseController.text.trim();
-    if (courseName.isEmpty) return;
+    final prefix = _prefixController.text.trim();
+    final id = _idController.text.trim();
+    final name = _nameController.text.trim();
 
-    if (!db.getCourses().contains(courseName)) {
-      db.addCourse(courseName);
-      _courseController.clear();
+    if (prefix.isEmpty || id.isEmpty || name.isEmpty) {
+      _showError('Please fill in all fields.');
+      return;
+    }
+
+    final fullCourseName = '$prefix$id - $name';
+
+    if (!db.getCourses().contains(fullCourseName)) {
+      db.addCourse(fullCourseName);
+      _prefixController.clear();
+      _idController.clear();
+      _nameController.clear();
       setState(() {});
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Course already exists.')),
-      );
+      _showError('Course already exists.');
     }
   }
 
@@ -61,6 +71,71 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
     );
   }
 
+  void _modifyCourse(String oldCourse) {
+    final parts = oldCourse.split(RegExp(r'[\s\-]+'));
+    final prefix = parts.isNotEmpty ? parts[0].substring(0, 4) : '';
+    final id = parts.isNotEmpty ? parts[0].substring(4) : '';
+    final name = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+
+    final newPrefix = TextEditingController(text: prefix);
+    final newId = TextEditingController(text: id);
+    final newName = TextEditingController(text: name);
+
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Course'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _buildInput(newPrefix, 'Prefix'),
+            const SizedBox(height: 8),
+            _buildInput(newId, 'ID'),
+            const SizedBox(height: 8),
+            _buildInput(newName, 'Name'),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final newFullName = '${newPrefix.text.trim()}${newId.text.trim()} - ${newName.text.trim()}';
+              if (newPrefix.text.isEmpty || newId.text.isEmpty || newName.text.isEmpty) {
+                _showError('All fields must be filled.');
+                return;
+              }
+              db.renameCourse(oldCourse, newFullName);
+              setState(() {});
+              Navigator.pop(context);
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showError(String msg) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+  }
+
+  Widget _buildInput(TextEditingController controller, String hint) {
+    return TextField(
+      controller: controller,
+      decoration: InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.blue[50],
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+          borderSide: BorderSide.none,
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -74,34 +149,26 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
         leading: const BackButton(color: AppColors.blueText),
         title: Text(
           'Manage Courses',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            color: AppColors.blueText,
-          ),
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
         ),
       ),
       body: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            TextField(
-              controller: _courseController,
-              decoration: InputDecoration(
-                hintText: 'Enter new course name',
-                filled: true,
-                fillColor: Colors.blue[50],
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-              ),
+            Row(
+              children: [
+                Expanded(child: _buildInput(_prefixController, 'Prefix (e.g. COSC)')),
+                const SizedBox(width: 8),
+                Expanded(child: _buildInput(_idController, 'ID (e.g. 1234)')),
+                const SizedBox(width: 8),
+                Expanded(child: _buildInput(_nameController, 'Course Name (e.g. Engineering)')),
+              ],
             ),
             const SizedBox(height: 12),
             ElevatedButton(
               onPressed: _addCourse,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.blueText,
-              ),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.blueText),
               child: const Text('Add Course', style: TextStyle(color: Colors.white)),
             ),
             const SizedBox(height: 24),
@@ -115,9 +182,18 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                     child: ListTile(
                       title: Text(course, style: GoogleFonts.poppins()),
-                      trailing: IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _deleteCourse(course),
+                      trailing: Wrap(
+                        spacing: 8,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            onPressed: () => _modifyCourse(course),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => _deleteCourse(course),
+                          ),
+                        ],
                       ),
                     ),
                   );

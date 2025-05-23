@@ -11,12 +11,12 @@ class ProjectStatusScreen extends StatelessWidget {
   final String courseName;
 
   const ProjectStatusScreen({
-    Key? key,
+    super.key,
     required this.projectName,
     required this.completionPercentage,
     required this.status,
     required this.courseName,
-  }) : super(key: key);
+  });
 
   @override
   Widget build(BuildContext context) {

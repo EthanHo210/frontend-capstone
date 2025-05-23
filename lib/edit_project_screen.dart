@@ -220,7 +220,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             ),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              value: _selectedCourse,
+              value: availableCourses.contains(_selectedCourse) ? _selectedCourse : null,
               items: availableCourses
                   .map((course) => DropdownMenuItem(value: course, child: Text(course)))
                   .toList(),
@@ -235,6 +235,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
                 ),
               ),
             ),
+
             const SizedBox(height: 16),
             Text(
               'Add Members to this Project:',

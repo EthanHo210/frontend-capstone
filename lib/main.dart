@@ -18,6 +18,7 @@ import 'admin_dashboard.dart';
 import 'mock_database.dart';
 import 'app_colors.dart';
 import 'user_logs_screen.dart';
+import 'select_courses_screen.dart';
 
 void main() {
   runApp(const TogetherApp());
@@ -44,8 +45,7 @@ class _TogetherAppState extends State<TogetherApp> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Together!'
-      ,
+      title: 'Together!',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.light,
@@ -118,8 +118,28 @@ class _TogetherAppState extends State<TogetherApp> {
             return MaterialPageRoute(builder: (_) => const StartNewProjectScreen());
           case '/projectPlanning':
             return MaterialPageRoute(builder: (_) => const ProjectPlanningScreen());
+          case '/selectCourse':
+            final db = MockDatabase();
+            final user = db.currentLoggedInUser ?? '';
+            final username = db.getUsernameByEmail(user) ?? user;
+            final projects = db.getAllProjects();
+            final Set<String> visibleCourses = projects
+                .where((project) {
+                  final members = project['members'] is List
+                      ? List<String>.from(project['members'])
+                      : (project['members'] as String).split(',').map((e) => e.trim()).toList();
+                  return members.contains(username);
+                })
+                .map((project) => project['course'] as String)
+                .where((course) => course.isNotEmpty && course != 'N/A')
+                .toSet();
+            return MaterialPageRoute(
+              builder: (_) => SelectCoursesScreen(courses: visibleCourses.toList()),
+            );
           case '/courseTeams':
-            return MaterialPageRoute(builder: (_) => const CourseTeamsScreen());
+            final args = settings.arguments as Map<String, dynamic>;
+            final selectedCourse = args['selectedCourse'] as String;
+            return MaterialPageRoute(builder: (_) => CourseTeamsScreen(selectedCourse: selectedCourse));
           case '/manage_users':
             return MaterialPageRoute(builder: (_) => const ManageUsersScreen());
           case '/update_password':
@@ -144,12 +164,11 @@ class _TogetherAppState extends State<TogetherApp> {
             );
           case '/user_logs':
             return MaterialPageRoute(builder: (_) => const UserLogsScreen());
-          
+
           default:
             return null;
         }
       },
-
       navigatorObservers: [routeObserver],
     );
   }

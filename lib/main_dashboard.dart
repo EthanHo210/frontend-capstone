@@ -3,10 +3,10 @@ import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
 import 'settings_screen.dart';
 import 'mock_database.dart';
-import 'project_status_screen.dart';
 import 'app_colors.dart';
 import 'main.dart';
-import 'package:flutter/scheduler.dart';
+import 'dart:async';
+import 'select_courses_screen.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -19,11 +19,17 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
   final int _selectedIndex = 0;
   Map<String, String>? _projectInfo;
   String _userRole = 'user';
+  Timer? _refreshTimer;
 
   @override
   void initState() {
     super.initState();
     _loadUserRoleAndProject();
+    _startAutoRefresh();
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer = Timer.periodic(const Duration(seconds: 10), (_) => _loadUserRoleAndProject());
   }
 
   @override
@@ -36,6 +42,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
   @override
   void dispose() {
     routeObserver.unsubscribe(this);
+    _refreshTimer?.cancel();
     super.dispose();
   }
 
@@ -61,7 +68,13 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
     );
 
     if (matchingProject.isNotEmpty) {
-      db.setProjectInfoForUser(user, matchingProject);
+      db.setProjectInfoForUser(user, {
+        'name': matchingProject['name'],
+        'completion': '0%',
+        'status': matchingProject['status'],
+        'course': matchingProject['course'],
+        'deadline': matchingProject['deadline'],
+      });
     }
 
     setState(() {
@@ -80,7 +93,28 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
         _loadUserRoleAndProject();
       }
     } else if (effectiveIndex == 1) {
-      Navigator.pushNamed(context, '/courseTeams');
+      final db = MockDatabase();
+      final user = db.currentLoggedInUser ?? '';
+      final username = db.getUsernameByEmail(user) ?? user;
+      final allProjects = db.getAllProjects();
+
+      final visibleCourses = allProjects
+          .where((project) {
+            final members = project['members'] is List
+                ? List<String>.from(project['members'])
+                : (project['members'] as String).split(',').map((e) => e.trim()).toList();
+            return members.contains(username);
+          })
+          .map((project) => project['course'].toString())
+          .toSet()
+          .toList();
+
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SelectCoursesScreen(courses: visibleCourses),
+        ),
+      );
     } else if (effectiveIndex == 2) {
       return;
     } else if (effectiveIndex == 3) {

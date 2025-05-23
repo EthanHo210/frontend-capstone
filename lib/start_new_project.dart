@@ -62,7 +62,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     );
   }
 
-  void _confirmSubmitProject() {
+  void _confirmSubmitProject() async {
     final name = _nameController.text.trim();
     final formattedDeadline = _deadline?.toIso8601String();
 
@@ -71,28 +71,36 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       return;
     }
 
-    showDialog(
+    final confirmed = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Confirm Project Creation'),
+      builder: (context) => AlertDialog(
+        title: Row(
+          children: const [
+            Icon(Icons.warning, color: Colors.amber),
+            SizedBox(width: 8),
+            Text('Confirm Project Creation'),
+          ],
+        ),
         content: const Text('Are you sure you want to create this project?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(context, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _submitProject();
-            },
+            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.blueText),
             child: const Text('Confirm', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
+
+    if (confirmed == true) {
+      _submitProject();
+    }
   }
+
 
   void _submitProject() {
     final name = _nameController.text.trim();

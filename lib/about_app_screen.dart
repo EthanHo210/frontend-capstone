@@ -47,6 +47,8 @@ class AboutAppScreen extends StatelessWidget {
           ],
         ),
       ),
+
+      
     );
   }
 }
