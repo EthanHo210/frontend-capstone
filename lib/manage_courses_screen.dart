@@ -186,7 +186,7 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
                         spacing: 8,
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.edit, color: Colors.orange),
+                            icon: const Icon(Icons.edit, color: Color(0xFF2A3181)),
                             onPressed: () => _modifyCourse(course),
                           ),
                           IconButton(
