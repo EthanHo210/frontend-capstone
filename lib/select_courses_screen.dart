@@ -16,16 +16,20 @@ class SelectCoursesScreen extends StatelessWidget {
     final allProjects = db.getAllProjects();
 
     // Collect courses only if user is a member of associated project
-    final visibleCourses = allProjects
-        .where((project) {
-          final members = project['members'] is List
-              ? List<String>.from(project['members'])
-              : (project['members'] as String).split(',').map((e) => e.trim()).toList();
-          return members.contains(currentUser);
-        })
-        .map((project) => project['course'] as String)
-        .toSet()
-        .toList();
+    final userRole = db.getUserRole(currentUser ?? '');
+    final visibleCourses = (userRole == 'admin' || userRole == 'officer')
+        ? db.getCourses() // Admin sees all
+        : allProjects
+            .where((project) {
+              final members = project['members'] is List
+                  ? List<String>.from(project['members'])
+                  : (project['members'] as String).split(',').map((e) => e.trim()).toList();
+              return members.contains(currentUser);
+            })
+            .map((project) => project['course'] as String)
+            .toSet()
+            .toList();
+
 
     return Scaffold(
       appBar: AppBar(

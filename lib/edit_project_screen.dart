@@ -27,9 +27,10 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
   void initState() {
     super.initState();
     final role = db.getUserRole(db.currentLoggedInUser ?? '');
-    if (role != 'teacher') {
+    if (role != 'teacher' && role != 'admin' && role != 'officer') {
       Future.microtask(() => _showUnauthorized());
     }
+
 
     _nameController = TextEditingController(text: widget.project['name']?.toString() ?? '');
     _selectedCourse = widget.project['course']?.toString();
@@ -40,7 +41,11 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
         ? rawMembers.split(',').map((id) => id.trim()).where((id) => id.isNotEmpty).toList()
         : List<String>.from(rawMembers ?? []);
 
-    allStudents = db.getAllUsers().where((user) => user['role'] == 'user').toList();
+    allStudents = db.getAllUsers().where((user) {
+      final role = user['role'];
+      return role != 'admin' && role != 'officer';
+    }).toList();
+
     availableCourses = db.getCourses();
   }
 
@@ -49,7 +54,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Access Denied'),
-        content: const Text('Only teachers are allowed to edit projects.'),
+        content: const Text('Only teachers, officers, and admins are allowed to edit projects.'),
         actions: [
           TextButton(
             child: const Text('OK'),

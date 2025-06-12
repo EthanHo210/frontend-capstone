@@ -10,12 +10,22 @@ class AdminMainHubScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final db = MockDatabase();
+    final role = db.getUserRole(db.currentLoggedInUser ?? '');
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         automaticallyImplyLeading: false,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: AppColors.blueText),
+          tooltip: 'Back to Dashboard',
+          onPressed: () {
+            Navigator.pushReplacementNamed(context, '/main_dashboard');
+          },
+        ),
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -62,7 +72,7 @@ class AdminMainHubScreen extends StatelessWidget {
             icon: const Icon(Icons.logout, color: AppColors.blueText),
             tooltip: 'Log out',
             onPressed: () {
-              MockDatabase().logout();
+              db.logout();
               Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
             },
           ),
@@ -73,31 +83,27 @@ class AdminMainHubScreen extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ElevatedButton.icon(
-              icon: const Icon(Icons.people),
-              label: const Text('Manage Users'),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const AdminDashboard()),
-                );
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.blueText,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 16),
-                textStyle: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
+            if (role == 'admin') ...[
+              ElevatedButton.icon(
+                icon: const Icon(Icons.people),
+                label: const Text('Manage Users'),
+                onPressed: () {
+                  Navigator.pushNamed(context, '/manage_users');
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.blueText,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  textStyle: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
               ),
-            ),
-            const SizedBox(height: 24),
+              const SizedBox(height: 24),
+            ],
             ElevatedButton.icon(
               icon: const Icon(Icons.class_),
               label: const Text('Manage Courses'),
               onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const ManageCoursesScreen()),
-                );
+                Navigator.pushNamed(context, '/manage_courses');
               },
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.blueText,

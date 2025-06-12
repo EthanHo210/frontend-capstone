@@ -37,6 +37,13 @@ class MockDatabase {
       'password': sha256.convert(utf8.encode('adminpass')).toString(),
       'role': 'admin',
     },
+    {
+      'username': 'officer1',
+      'email': 'officer@example.com',
+      'password': sha256.convert(utf8.encode('officerpass')).toString(),
+      'role': 'officer',
+    },
+
   ];
 
   final Map<String, Map<String, String>> _userProjects = {};
@@ -341,6 +348,9 @@ class MockDatabase {
   List<String> getCourses() {
     return List.from(_courses);
   }
+
+  bool isOfficer(String usernameOrEmail) =>
+    getUserRole(usernameOrEmail).toLowerCase() == 'officer';
 
   List<Map<String, dynamic>> getAllUsers() => List.from(_users);
   String get adminPin => _adminPin;

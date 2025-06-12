@@ -7,6 +7,7 @@ import 'app_colors.dart';
 import 'main.dart';
 import 'dart:async';
 import 'select_courses_screen.dart';
+import 'admin_main_hub_screen.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -16,7 +17,7 @@ class MainDashboard extends StatefulWidget {
 }
 
 class _MainDashboardState extends State<MainDashboard> with RouteAware {
-  final int _selectedIndex = 0;
+  int _selectedIndex = 0;
   Map<String, String>? _projectInfo;
   String _userRole = 'user';
   Timer? _refreshTimer;
@@ -84,48 +85,124 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
   }
 
   void _onItemTapped(int index) async {
-    final isStudent = _userRole == 'user';
-    final effectiveIndex = isStudent ? index + 1 : index;
+    final db = MockDatabase();
+    final user = db.currentLoggedInUser ?? '';
+    final username = db.getUsernameByEmail(user) ?? user;
 
-    if (effectiveIndex == 0 && !isStudent) {
-      final result = await Navigator.pushNamed(context, '/start_new_project');
-      if (result == true) {
-        _loadUserRoleAndProject();
+    if (_userRole == 'admin' || _userRole == 'officer') {
+      switch (index) {
+        case 0:
+          final result = await Navigator.pushNamed(context, '/start_new_project');
+          if (result == true) _loadUserRoleAndProject();
+          break;
+        case 1:
+          final allProjects = db.getAllProjects();
+          final visibleCourses = allProjects
+              .map((project) => project['course'].toString())
+              .toSet()
+              .toList();
+
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SelectCoursesScreen(courses: visibleCourses),
+            ),
+          );
+          break;
+        case 2:
+          // Tracking
+          break;
+        case 3:
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SettingsScreen(isAdmin: true),
+            ),
+          );
+          break;
+        case 4:
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const AdminMainHubScreen()),
+          );
+          break;
       }
-    } else if (effectiveIndex == 1) {
-      final db = MockDatabase();
-      final user = db.currentLoggedInUser ?? '';
-      final username = db.getUsernameByEmail(user) ?? user;
-      final allProjects = db.getAllProjects();
+    } else if (_userRole == 'teacher') {
+      switch (index) {
+        case 0:
+          final result = await Navigator.pushNamed(context, '/start_new_project');
+          if (result == true) _loadUserRoleAndProject();
+          break;
+        case 1:
+          final allProjects = db.getAllProjects();
+          final visibleCourses = allProjects
+              .where((project) {
+                final members = project['members'] is List
+                    ? List<String>.from(project['members'])
+                    : (project['members'] as String).split(',').map((e) => e.trim()).toList();
+                return members.contains(username);
+              })
+              .map((project) => project['course'].toString())
+              .toSet()
+              .toList();
 
-      final visibleCourses = allProjects
-          .where((project) {
-            final members = project['members'] is List
-                ? List<String>.from(project['members'])
-                : (project['members'] as String).split(',').map((e) => e.trim()).toList();
-            return members.contains(username);
-          })
-          .map((project) => project['course'].toString())
-          .toSet()
-          .toList();
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SelectCoursesScreen(courses: visibleCourses),
+            ),
+          );
+          break;
+        case 2:
+          // Tracking (placeholder or navigation)
+          break;
+        case 3:
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SettingsScreen(isAdmin: false),
+            ),
+          );
+          break;
+      }
+    } else {
+      // For normal students
+      switch (index) {
+        case 0:
+          final allProjects = db.getAllProjects();
+          final visibleCourses = allProjects
+              .where((project) {
+                final members = project['members'] is List
+                    ? List<String>.from(project['members'])
+                    : (project['members'] as String).split(',').map((e) => e.trim()).toList();
+                return members.contains(username);
+              })
+              .map((project) => project['course'].toString())
+              .toSet()
+              .toList();
 
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) => SelectCoursesScreen(courses: visibleCourses),
-        ),
-      );
-    } else if (effectiveIndex == 2) {
-      return;
-    } else if (effectiveIndex == 3) {
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (context) => SettingsScreen(isAdmin: _userRole == 'admin'),
-        ),
-      );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => SelectCoursesScreen(courses: visibleCourses),
+            ),
+          );
+          break;
+        case 1:
+          // Tracking
+          break;
+        case 2:
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => SettingsScreen(isAdmin: false),
+            ),
+          );
+          break;
+      }
     }
   }
+
 
   Color getStatusColor(String status) {
     switch (status) {
@@ -146,13 +223,19 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
 
   List<Widget> _buildLatestProjects() {
     final db = MockDatabase();
-    final username = db.getUsernameByEmail(db.currentLoggedInUser ?? '') ?? db.currentLoggedInUser ?? '';
+    final user = db.currentLoggedInUser ?? '';
+    final role = db.getUserRole(user);
+    final username = db.getUsernameByEmail(user) ?? user;
+
     final projects = db.getAllProjects().where((project) {
+      if (role == 'admin' || role == 'officer') return true; // Admins & Officers see everything
       final members = project['members'] is List
           ? List<String>.from(project['members'])
           : (project['members'] as String).split(',').map((e) => e.trim()).toList();
       return members.contains(username);
     }).toList();
+
+
 
     if (projects.isEmpty) {
       return [
@@ -227,21 +310,16 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
 
     final projectInfo = _projectInfo ?? {
       'project': 'No project',
-      'contribution': '0%',
       'rank': 'Unranked',
       'course': 'N/A',
       'deadline': '',
     };
 
     final projectName = projectInfo['project']!;
-    final contribution = projectInfo['contribution']!;
     final deadlineRaw = projectInfo['deadline'] ?? 'N/A';
     final deadlineFormatted = deadlineRaw != 'N/A' && deadlineRaw.isNotEmpty
         ? DateFormat('yyyy-MM-dd - HH:mm:ss').format(DateTime.parse(deadlineRaw))
         : 'N/A';
-
-    final completion = int.tryParse(contribution.replaceAll('%', '')) ?? 0;
-    final status = db.calculateStatus(deadlineRaw, completion);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -338,21 +416,12 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                   const SizedBox(height: 12),
                   Text(
                     'Current Project: $projectName\n'
-                    'Contribution Rate: $contribution\n'
                     'Status: ',
                     textAlign: TextAlign.center,
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.normal,
                       color: AppColors.blueText,
-                    ),
-                  ),
-                  Text(
-                    status,
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
-                      color: getStatusColor(status),
                     ),
                   ),
                   Text(
@@ -411,38 +480,61 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
         selectedFontSize: 14,
         unselectedFontSize: 12,
         items: _userRole == 'user'
-            ? const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.assignment),
-                  label: 'Projects',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.track_changes),
-                  label: 'Tracking',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ]
-            : const [
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.lightbulb_outline),
-                  label: 'Start New',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.assignment),
-                  label: 'Projects',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.track_changes),
-                  label: 'Tracking',
-                ),
-                BottomNavigationBarItem(
-                  icon: Icon(Icons.settings),
-                  label: 'Settings',
-                ),
-              ],
+          ? const [
+              BottomNavigationBarItem(
+                icon: Icon(Icons.assignment),
+                label: 'Projects',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.track_changes),
+                label: 'Tracking',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.settings),
+                label: 'Settings',
+              ),
+            ]
+          : (_userRole == 'admin' || _userRole == 'officer')
+              ? const [
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.lightbulb_outline),
+                    label: 'Start New',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.assignment),
+                    label: 'Projects',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.track_changes),
+                    label: 'Tracking',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.settings),
+                    label: 'Settings',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.manage_accounts),
+                    label: 'Manage',
+                  ),
+                ]
+              : const [ // for teachers only
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.lightbulb_outline),
+                    label: 'Start New',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.assignment),
+                    label: 'Projects',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.track_changes),
+                    label: 'Tracking',
+                  ),
+                  BottomNavigationBarItem(
+                    icon: Icon(Icons.settings),
+                    label: 'Settings',
+                  ),
+                ],
       ),
       floatingActionButton: FloatingActionButton(
         backgroundColor: AppColors.blueText,

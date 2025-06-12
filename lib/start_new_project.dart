@@ -25,12 +25,15 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     super.initState();
     final db = MockDatabase();
     final role = db.getUserRole(db.currentLoggedInUser ?? '');
-    if (role != 'teacher') {
+    if (role != 'teacher' && role != 'admin' && role != 'officer') {
       Future.microtask(() => _showUnauthorized());
     } else {
       _userList = db
           .getAllUsers()
-          .where((u) => u['username'] != 'admin')
+          .where((u) =>
+              u['username'] != 'admin' &&
+              u['role'] != 'admin' &&
+              u['role'] != 'officer')
           .map((u) => {
                 'username': u['username'].toString(),
                 'role': u['role'].toString(),
@@ -38,8 +41,8 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
           .toList();
       _userItems = _userList.map((user) {
         final display = user['role'] == 'teacher'
-            ? '${user['username']} (teacher)'
-            : user['username']!;
+          ? '${user['username']} (teacher)'
+          : user['username'] ?? '';
         return MultiSelectItem<String>(user['username']!, display);
       }).toList();
       _availableCourses = db.getCourses();
@@ -51,7 +54,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Access Denied'),
-        content: const Text('Only teachers are allowed to start a new project.'),
+        content: const Text('Only teachers and admins are allowed to start a new project.'),
         actions: [
           TextButton(
             child: const Text('OK'),
@@ -109,8 +112,12 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     final formattedDeadline = _deadline?.toIso8601String();
 
     if (!_selectedUsers.contains(currentUser)) {
-      _selectedUsers.add(currentUser);
+      final role = db.getUserRole(currentUser);
+      if (role == 'teacher') {
+        _selectedUsers.add(currentUser);
+      }
     }
+
 
     db.addProject({
       'name': name,

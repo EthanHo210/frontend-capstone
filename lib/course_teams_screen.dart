@@ -52,6 +52,8 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
 
   void _loadProjects() {
     final allProjects = db.getAllProjects();
+    final role = db.getUserRole(currentUser);
+    
     projects = allProjects.where((project) {
       final course = project['course'] ?? 'N/A';
       if (course != widget.selectedCourse) return false;
@@ -69,9 +71,11 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
       } else {
         members = [];
       }
-      return members.contains(username);
+
+      return members.contains(username) || role == 'admin' || role == 'officer';
     }).toList();
   }
+
 
   Color getStatusColor(String status) {
     switch (status) {
@@ -234,7 +238,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
                               ],
                             ),
                           ),
-                          if (isTeacher)
+                          if (isTeacher || db.getUserRole(currentUser) == 'admin' || db.getUserRole(currentUser) == 'officer')
                             Positioned(
                               top: 0,
                               right: 0,

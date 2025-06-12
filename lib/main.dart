@@ -19,6 +19,7 @@ import 'mock_database.dart';
 import 'app_colors.dart';
 import 'user_logs_screen.dart';
 import 'select_courses_screen.dart';
+import 'manage_courses_screen.dart';
 
 void main() {
   runApp(const TogetherApp());
@@ -109,7 +110,7 @@ class _TogetherAppState extends State<TogetherApp> {
             final user = db.currentLoggedInUser;
             final role = user != null ? db.getUserRole(user) : 'user';
 
-            if (role == 'admin') {
+            if (role == 'admin' || role == 'officer') {
               return MaterialPageRoute(builder: (_) => const AdminDashboard());
             } else {
               return MaterialPageRoute(builder: (_) => const MainDashboard());
@@ -164,6 +165,10 @@ class _TogetherAppState extends State<TogetherApp> {
             );
           case '/user_logs':
             return MaterialPageRoute(builder: (_) => const UserLogsScreen());
+          case '/main_dashboard':
+            return MaterialPageRoute(builder: (_) => const MainDashboard());
+          case '/manage_courses':
+            return MaterialPageRoute(builder: (_) => const ManageCoursesScreen());
 
           default:
             return null;
