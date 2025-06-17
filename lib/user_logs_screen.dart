@@ -3,15 +3,51 @@ import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
 import 'app_colors.dart';
 
-class UserLogsScreen extends StatelessWidget {
+class UserLogsScreen extends StatefulWidget {
   const UserLogsScreen({super.key});
 
   @override
+  State<UserLogsScreen> createState() => _UserLogsScreenState();
+}
+
+class _UserLogsScreenState extends State<UserLogsScreen> {
+  final MockDatabase db = MockDatabase();
+  String searchQuery = '';
+
+  @override
   Widget build(BuildContext context) {
-    final db = MockDatabase();
     final currentUser = db.currentLoggedInUser ?? '';
     final isTeacher = db.isTeacher(currentUser);
-    final users = db.getAllUsers().where((user) => user['username'] != 'admin').toList();
+    final allUsers = db.getAllUsers().where((user) => user['username'] != 'admin').toList();
+
+    final filteredUsers = allUsers.where((user) {
+      final username = user['username']!.toLowerCase();
+      final email = user['email']!.toLowerCase();
+      final matchesSearch = username.contains(searchQuery.toLowerCase()) || email.contains(searchQuery.toLowerCase());
+
+      if (!matchesSearch) return false;
+
+      final role = user['role'];
+      if (isTeacher && role == 'teacher') return false;
+      if (!isTeacher && role != 'teacher' && role != 'user') return false;
+
+      return true;
+    }).toList();
+
+    filteredUsers.sort((a, b) => a['username'].compareTo(b['username']));
+
+    Map<String, List<Map<String, dynamic>>> categorized = {
+      'Teachers': [],
+      'Students': [],
+    };
+
+    for (var user in filteredUsers) {
+      if (user['role'] == 'teacher') {
+        categorized['Teachers']!.add(user);
+      } else {
+        categorized['Students']!.add(user);
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(
@@ -25,68 +61,80 @@ class UserLogsScreen extends StatelessWidget {
             color: AppColors.blueText,
           ),
         ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              decoration: InputDecoration(
+                hintText: 'Search users...',
+                filled: true,
+                fillColor: Colors.blue[50],
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+              ),
+              onChanged: (value) => setState(() => searchQuery = value),
+            ),
+          ),
+        ),
       ),
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-      body: ListView.builder(
+      body: ListView(
         padding: const EdgeInsets.all(16),
-        itemCount: users.length,
-        itemBuilder: (context, index) {
-          final user = users[index];
-          final username = user['username'];
-          final role = user['role'];
+        children: [
+          if (!isTeacher && categorized['Teachers']!.isNotEmpty)
+            _buildCategory('Teachers', categorized['Teachers']!, isTeacher),
+          if (categorized['Students']!.isNotEmpty)
+            _buildCategory('Students', categorized['Students']!, isTeacher),
+        ],
+      ),
+    );
+  }
 
-          // Skip teachers on teacher view (they don't need a log), skip all except students and teachers on student view
-          if (isTeacher && role == 'teacher') return const SizedBox.shrink();
-          if (!isTeacher && role != 'teacher' && role != 'user') return const SizedBox.shrink();
+  Widget _buildCategory(String label, List<Map<String, dynamic>> users, bool isTeacher) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.blueText)),
+        const SizedBox(height: 8),
+        ...users.map((user) => _buildUserCard(user, isTeacher)).toList(),
+        const SizedBox(height: 24),
+      ],
+    );
+  }
 
-          final projectInfo = db.getProjectInfoForUser(username);
+  Widget _buildUserCard(Map<String, dynamic> user, bool isTeacher) {
+    final username = user['username'];
+    final projectInfo = db.getProjectInfoForUser(username);
 
-          return Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            color: Colors.blue[50],
-            margin: const EdgeInsets.symmetric(vertical: 8),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: isTeacher
-                  ? Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          username,
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.blueText,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Project team: ${projectInfo?['project'] ?? 'N/A'}', style: GoogleFonts.poppins()),
-                        Text('Project status: ${projectInfo?['rank'] ?? 'N/A'}', style: GoogleFonts.poppins()),
-                        Text('Assigned task: (Coming soon)', style: GoogleFonts.poppins()),
-                        Text('Contribution rate: ${projectInfo?['contribution'] ?? '0%'}', style: GoogleFonts.poppins()),
-                        Text('Comment: (Coming soon)', style: GoogleFonts.poppins()),
-                      ],
-                    )
-                  : Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          username,
-                          style: GoogleFonts.poppins(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                            color: AppColors.blueText,
-                          ),
-                        ),
-                        const SizedBox(height: 8),
-                        Text('Email: ${user['email']}', style: GoogleFonts.poppins()),
-                        Text('Role: ${user['role']}', style: GoogleFonts.poppins()),
-                      ],
-                    ),
-            ),
-          );
-        },
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      color: Colors.blue[50],
+      margin: const EdgeInsets.symmetric(vertical: 8),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: isTeacher
+            ? Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(username, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.blueText)),
+                  const SizedBox(height: 8),
+                  Text('Project team: ${projectInfo?['project'] ?? 'N/A'}', style: GoogleFonts.poppins()),
+                  Text('Project status: ${projectInfo?['rank'] ?? 'N/A'}', style: GoogleFonts.poppins()),
+                  Text('Assigned task: (Coming soon)', style: GoogleFonts.poppins()),
+                  Text('Contribution rate: ${projectInfo?['contribution'] ?? '0%'}', style: GoogleFonts.poppins()),
+                  Text('Comment: (Coming soon)', style: GoogleFonts.poppins()),
+                ],
+              )
+            : Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(username, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.blueText)),
+                  const SizedBox(height: 8),
+                  Text('Email: ${user['email']}', style: GoogleFonts.poppins()),
+                ],
+              ),
       ),
     );
   }

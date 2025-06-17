@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'admin_dashboard.dart'; // User management
-import 'manage_courses_screen.dart'; // Course management
 import 'app_colors.dart';
 import 'mock_database.dart'; // Mock database for user authentication
 
@@ -67,16 +65,6 @@ class AdminMainHubScreen extends StatelessWidget {
             ),
           ],
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout, color: AppColors.blueText),
-            tooltip: 'Log out',
-            onPressed: () {
-              db.logout();
-              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
-            },
-          ),
-        ],
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),

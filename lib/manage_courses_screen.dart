@@ -15,6 +15,8 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
   final TextEditingController _prefixController = TextEditingController();
   final TextEditingController _idController = TextEditingController();
   final TextEditingController _nameController = TextEditingController();
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
 
   void _addCourse() {
     final prefix = _prefixController.text.trim();
@@ -72,10 +74,11 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
   }
 
   void _modifyCourse(String oldCourse) {
-    final parts = oldCourse.split(RegExp(r'[\s\-]+'));
-    final prefix = parts.isNotEmpty ? parts[0].substring(0, 4) : '';
-    final id = parts.isNotEmpty ? parts[0].substring(4) : '';
-    final name = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+    final parts = oldCourse.split(RegExp(r'\s\-\s'));
+    final prefixAndId = parts.isNotEmpty ? parts[0] : '';
+    final name = parts.length > 1 ? parts[1] : '';
+    final prefix = prefixAndId.length >= 4 ? prefixAndId.substring(0, 4) : '';
+    final id = prefixAndId.length > 4 ? prefixAndId.substring(4) : '';
 
     final newPrefix = TextEditingController(text: prefix);
     final newId = TextEditingController(text: id);
@@ -119,7 +122,19 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
   }
 
   void _showError(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Error'),
+        content: Text(msg),
+        actions: [
+          TextButton(
+            child: const Text('OK'),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+        ],
+      ),
+    );
   }
 
   Widget _buildInput(TextEditingController controller, String hint) {
@@ -139,7 +154,11 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final courses = db.getCourses();
+    final allCourses = db.getCourses();
+    final courses = allCourses
+        .where((course) => course.toLowerCase().contains(_searchQuery.toLowerCase()))
+        .toList()
+      ..sort();
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -150,6 +169,26 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
         title: Text(
           'Manage Courses',
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
+        ),
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(60),
+          child: Padding(
+            padding: const EdgeInsets.all(12.0),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) => setState(() => _searchQuery = value),
+              decoration: InputDecoration(
+                hintText: 'Search courses...',
+                filled: true,
+                fillColor: Colors.white,
+                prefixIcon: const Icon(Icons.search),
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: BorderSide.none,
+                ),
+              ),
+            ),
+          ),
         ),
       ),
       body: Padding(

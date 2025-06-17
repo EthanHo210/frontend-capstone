@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
-import 'admin_main_hub_screen.dart'; // ✅ Make sure this exists
 import 'main_dashboard.dart';       // ✅ For both teacher and student for now
 import 'app_colors.dart';
 

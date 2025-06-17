@@ -43,7 +43,6 @@ class MockDatabase {
       'password': sha256.convert(utf8.encode('officerpass')).toString(),
       'role': 'officer',
     },
-
   ];
 
   final Map<String, Map<String, String>> _userProjects = {};
@@ -52,8 +51,8 @@ class MockDatabase {
   String? _currentLoggedInUser;
   final String _adminPin = '1234';
 
+  
   void addProject(Map<String, String> projectData) {
-    final deadline = DateTime.parse(projectData['deadline']!);
     final status = calculateStatus(projectData['deadline']!, 0);
     final members = projectData['members']!.split(',').map((e) => e.trim()).toList();
 
@@ -98,6 +97,14 @@ class MockDatabase {
     }
     return _userProjects[username];
   }
+
+  Map<String, dynamic>? getUserByUsername(String username) {
+    return _users.firstWhere(
+      (user) => user['username'] == username,
+      orElse: () => {},
+    );
+  }
+
 
   void setProjectInfoForUser(String usernameOrEmail, Map<String, dynamic> projectInfo) {
     String? username = usernameOrEmail;
@@ -178,70 +185,83 @@ class MockDatabase {
   void updateUser(String oldUsername, String email, String rawPassword, String role, {String? newUsername}) {
     for (var user in _users) {
       if (user['username'] == oldUsername && oldUsername != 'admin') {
-        // Update username if newUsername is provided and unique
-        if (newUsername != null && newUsername.isNotEmpty && newUsername != oldUsername && !isUsernameExists(newUsername)) {
-          // Update username in _userProjects
+        if (newUsername != null && newUsername != oldUsername && !isUsernameExists(newUsername)) {
           if (_userProjects.containsKey(oldUsername)) {
             _userProjects[newUsername] = _userProjects.remove(oldUsername)!;
           }
-
-          // Update username in all projects' members
           for (var project in _projects) {
             if (project['members'] is List) {
-              project['members'] = (project['members'] as List).map((member) {
-                return member == oldUsername ? newUsername : member;
-              }).toList();
+              project['members'] = (project['members'] as List).map((m) => m == oldUsername ? newUsername : m).toList();
             }
           }
-
           user['username'] = newUsername;
-
-          // Update _currentLoggedInUser if needed
           if (_currentLoggedInUser == oldUsername) {
             _currentLoggedInUser = newUsername;
           }
         }
 
-        // Update other fields
         user['email'] = email;
-        final isAlreadyHashed = rawPassword.length == 64 && !rawPassword.contains(' ');
-        user['password'] = isAlreadyHashed
-            ? rawPassword
-            : sha256.convert(utf8.encode(rawPassword)).toString();
+        final isHashed = rawPassword.length == 64 && !rawPassword.contains(' ');
+        user['password'] = isHashed ? rawPassword : sha256.convert(utf8.encode(rawPassword)).toString();
         user['role'] = role;
-
         break;
       }
     }
   }
 
 
+  Map<String, dynamic>? getUserByEmail(String email) {
+    try {
+      return _users.firstWhere((u) => u['email'] == email);
+    } catch (e) {
+      return null;
+    }
+  }
 
-  bool isUsernameExists(String username) =>
-      _users.any((u) => u['username'] == username);
 
-  bool isEmailExists(String email) =>
-      _users.any((u) => u['email'] == email);
+  void addUser(Map<String, dynamic> user) {
+    final email = user['email'];
+    final username = user['username'];
+    if (isEmailExists(email) || isUsernameExists(username)) return;
 
-  String? getUsernameByEmail(String email) =>
-      _users.firstWhere((u) => u['email'] == email, orElse: () => {})['username'];
+    final rawPassword = user['password'];
+    final hashedPassword = sha256.convert(utf8.encode(rawPassword)).toString();
 
-  String? getEmailByUsername(String username) =>
-      _users.firstWhere((u) => u['username'] == username, orElse: () => {})['email'];
+    _users.add({
+      'username': username,
+      'email': email,
+      'password': hashedPassword,
+      'role': user['role'],
+    });
 
-  String getUserRole(String usernameOrEmail) =>
-      _users.firstWhere((u) =>
-          u['username'] == usernameOrEmail || u['email'] == usernameOrEmail,
-          orElse: () => {'role': 'user'})['role'];
+    _userProjects[username] = {
+      'project': 'N/A',
+      'contribution': '0%',
+      'rank': 'Unranked',
+      'course': 'N/A',
+      'deadline': '',
+    };
+  }
 
-  bool isAdmin(String usernameOrEmail) =>
-      getUserRole(usernameOrEmail).toLowerCase() == 'admin';
 
-  bool isTeacher(String usernameOrEmail) =>
-      getUserRole(usernameOrEmail).toLowerCase() == 'teacher';
+  bool isUsernameExists(String username) => _users.any((u) => u['username'] == username);
+  bool isEmailExists(String email) => _users.any((u) => u['email'] == email);
 
-  bool isStudent(String usernameOrEmail) =>
-      getUserRole(usernameOrEmail).toLowerCase() == 'user';
+  String? getUsernameByEmail(String email) => _users.firstWhere((u) => u['email'] == email, orElse: () => {})['username'];
+  String? getEmailByUsername(String username) => _users.firstWhere((u) => u['username'] == username, orElse: () => {})['email'];
+  String? getUserNameById(String id) => _users.firstWhere((u) => u['username'] == id, orElse: () => {})['username'];
+
+  String getUserRole(String id) =>
+      _users.firstWhere((u) => u['username'] == id || u['email'] == id, orElse: () => {'role': 'user'})['role'];
+
+  bool isAdmin(String id) => getUserRole(id).toLowerCase() == 'admin';
+  bool isTeacher(String id) => getUserRole(id).toLowerCase() == 'teacher';
+  bool isStudent(String id) => getUserRole(id).toLowerCase() == 'user';
+  bool isOfficer(String id) => getUserRole(id).toLowerCase() == 'officer';
+
+  List<Map<String, dynamic>> getAllUsers() => List.from(_users);
+
+  bool isUsernameTaken(String username) => isUsernameExists(username);
 
   bool updateUsername(String newUsername) {
     if (_currentLoggedInUser == null) return false;
@@ -269,9 +289,7 @@ class MockDatabase {
 
   bool updatePassword(String newPassword) {
     if (_currentLoggedInUser == null) return false;
-
     final hashedPassword = sha256.convert(utf8.encode(newPassword)).toString();
-
     for (var user in _users) {
       if (user['username'] == _currentLoggedInUser || user['email'] == _currentLoggedInUser) {
         user['password'] = hashedPassword;
@@ -281,18 +299,10 @@ class MockDatabase {
     return false;
   }
 
-
   void deleteUser(String username) {
     if (username == 'admin') return;
     _users.removeWhere((u) => u['username'] == username);
   }
-
-  Map<String, dynamic>? getUserByUsername(String username) =>
-      _users.firstWhere((user) => user['username'] == username, orElse: () => {});
-
-  String? getUserNameById(String id) =>
-      _users.firstWhere((u) => u['username'] == id, orElse: () => {})['username'];
-
 
   List<String> getAllCourses() => List.from(_courses);
 
@@ -302,17 +312,15 @@ class MockDatabase {
     }
   }
 
+  void removeCourse(String courseName) {
+    _courses.remove(courseName.trim());
+  }
+
   void deleteCourse(String courseName) {
     _courses.remove(courseName);
-
-    // Remove from projects
     for (var project in _projects) {
-      if (project['course'] == courseName) {
-        project['course'] = 'N/A';
-      }
+      if (project['course'] == courseName) project['course'] = 'N/A';
     }
-
-    // Remove from user project info
     for (var key in _userProjects.keys) {
       if (_userProjects[key]?['course'] == courseName) {
         _userProjects[key]!['course'] = 'N/A';
@@ -326,9 +334,7 @@ class MockDatabase {
       _courses[index] = newName;
 
       for (var project in _projects) {
-        if (project['course'] == oldName) {
-          project['course'] = newName;
-        }
+        if (project['course'] == oldName) project['course'] = newName;
       }
 
       for (var key in _userProjects.keys) {
@@ -339,20 +345,7 @@ class MockDatabase {
     }
   }
 
-  
-  void removeCourse(String courseName) {
-    _courses.remove(courseName.trim());
-  }
-
-
-  List<String> getCourses() {
-    return List.from(_courses);
-  }
-
-  bool isOfficer(String usernameOrEmail) =>
-    getUserRole(usernameOrEmail).toLowerCase() == 'officer';
-
-  List<Map<String, dynamic>> getAllUsers() => List.from(_users);
+  List<String> getCourses() => List.from(_courses);
   String get adminPin => _adminPin;
   String? get currentLoggedInUser => _currentLoggedInUser;
   void logout() => _currentLoggedInUser = null;
