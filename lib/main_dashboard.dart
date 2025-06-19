@@ -437,10 +437,22 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                       tooltip: 'Edit Project Info',
                       onPressed: () async {
                         if (_projectInfo == null || _projectInfo!["project"] == "No project") {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text('No projects available for edit.'),
-                            ),
+                          showDialog(
+                            context: context,
+                            builder: (BuildContext context) {
+                              return AlertDialog(
+                                title: const Text("No Projects"),
+                                content: const Text("There are no projects available for edit."),
+                                actions: [
+                                  TextButton(
+                                    child: const Text("OK"),
+                                    onPressed: () {
+                                      Navigator.of(context).pop();
+                                    },
+                                  ),
+                                ],
+                              );
+                            },
                           );
                         } else {
                           final result = await Navigator.pushNamed(context, '/edit_project', arguments: _projectInfo);

@@ -76,31 +76,6 @@ class SettingsScreen extends StatelessWidget {
 
           const SizedBox(height: 30),
 
-          if (isAdmin)
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Admin Tools',
-                  style: GoogleFonts.poppins(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    color: AppColors.blueText,
-                  ),
-                ),
-                const SizedBox(height: 10),
-                _buildSettingsTile(
-                  context,
-                  icon: Icons.manage_accounts,
-                  title: 'Manage Users',
-                  onTap: () {
-                    Navigator.pushNamed(context, '/admin_pin');
-                  },
-                ),
-                const SizedBox(height: 30),
-              ],
-            ),
-
           if (role != 'admin')
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,

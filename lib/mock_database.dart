@@ -12,36 +12,42 @@ class MockDatabase {
       'email': 'user1@example.com',
       'password': sha256.convert(utf8.encode('password123')).toString(),
       'role': 'user',
+      'fullName': 'Alice Nguyen',
     },
     {
       'username': 'testuser2',
       'email': 'user2@example.com',
       'password': sha256.convert(utf8.encode('password123')).toString(),
       'role': 'user',
+      'fullName': 'Brian Tran',
     },
     {
       'username': 'testuser3',
       'email': 'user3@example.com',
       'password': sha256.convert(utf8.encode('password123')).toString(),
       'role': 'user',
+      'fullName': 'Cynthia Le',
     },
     {
       'username': 'teacher1',
       'email': 'teacher@example.com',
       'password': sha256.convert(utf8.encode('teacherpass')).toString(),
       'role': 'teacher',
+      'fullName': 'David Hoang',
     },
     {
       'username': 'admin',
       'email': 'admin@example.com',
       'password': sha256.convert(utf8.encode('adminpass')).toString(),
       'role': 'admin',
+      'fullName': 'Emma Pham',
     },
     {
       'username': 'officer1',
       'email': 'officer@example.com',
       'password': sha256.convert(utf8.encode('officerpass')).toString(),
       'role': 'officer',
+      'fullName': 'Felix Vo',
     },
   ];
 
