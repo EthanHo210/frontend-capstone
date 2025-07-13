@@ -20,6 +20,8 @@ import 'app_colors.dart';
 import 'user_logs_screen.dart';
 import 'select_courses_screen.dart';
 import 'manage_courses_screen.dart';
+import 'assign_leader_screen.dart';
+import 'assign_task_screen.dart';
 
 void main() {
   runApp(const TogetherApp());
@@ -87,8 +89,6 @@ class _TogetherAppState extends State<TogetherApp> {
             return MaterialPageRoute(
               builder: (_) => ProjectStatusScreen(
                 projectName: args['projectName'],
-                completionPercentage: args['completionPercentage'],
-                status: args['status'],
                 courseName: args['courseName'],
               ),
             );
@@ -169,6 +169,16 @@ class _TogetherAppState extends State<TogetherApp> {
             return MaterialPageRoute(builder: (_) => const MainDashboard());
           case '/manage_courses':
             return MaterialPageRoute(builder: (_) => const ManageCoursesScreen());
+          case '/assignLeader':
+            final args = settings.arguments as Map<String, dynamic>;
+            return MaterialPageRoute(
+              builder: (_) => AssignLeaderScreen(projectName: args['projectName']),
+            );
+          case '/assign_tasks':
+            final args = settings.arguments as Map<String, dynamic>;
+            return MaterialPageRoute(
+              builder: (_) => AssignTaskScreen(projectName: args['projectName']),
+            );
 
           default:
             return null;

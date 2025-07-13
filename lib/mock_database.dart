@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
 
 class MockDatabase {
@@ -51,11 +52,204 @@ class MockDatabase {
     },
   ];
 
-  final Map<String, Map<String, String>> _userProjects = {};
-  final List<Map<String, dynamic>> _projects = [];
-  final List<String> _courses = [];
-  String? _currentLoggedInUser;
-  final String _adminPin = '1234';
+
+final Map<String, Map<String, String>> _userProjects = {};
+final List<Map<String, dynamic>> _projects = [];
+final List<String> _courses = [];
+String? _currentLoggedInUser;
+final String _adminPin = '1234';
+
+
+final Map<String, List<Map<String, dynamic>>> _projectTasks = {};
+final Map<String, String> _projectLeaders = {};
+
+  void assignLeader(String projectName, String username) {
+    _projectLeaders[projectName] = username;
+    for (var project in _projects) {
+      if (project['name'] == projectName) {
+        project['leader'] = username;
+        break;
+      }
+    }
+  }
+
+  String? getProjectLeader(String projectName) => _projectLeaders[projectName];
+
+  void addTaskToProject(String projectName, {
+    required String title,
+    required String assignedTo,
+    List<String>? subtasks,
+  }) {
+      final task = {
+        'id': DateTime.now().millisecondsSinceEpoch.toString(),
+        'title': title,
+        'assignedTo': assignedTo,
+        'subtasks': subtasks?.map((s) => {
+          'id': DateTime.now().microsecondsSinceEpoch.toString(),
+          'title': s,
+          'status': 'Pending',
+          'votes': <String, bool>{},
+          'comments': <String, String>{},
+          'proof': '',
+          'submittedBy': null,
+        }).toList() ?? [],
+        'status': 'Pending',
+        'proof': '',
+        'votes': <String, bool>{},
+        'comments': <String, String>{},
+        'submittedBy': null,
+        'confirmed': false,
+      };
+      _projectTasks.putIfAbsent(projectName, () => []).add(task);
+    }
+
+  List<Map<String, dynamic>> getTasksForProject(String projectName) =>
+      _projectTasks[projectName] ?? [];
+
+  void submitTaskProof(String projectName, String taskId, String proofText) {
+    final tasks = _projectTasks[projectName];
+    if (tasks == null) return;
+    final task = tasks.firstWhere((t) => t['id'] == taskId, orElse: () => {});
+    if (task.isNotEmpty) {
+      task['proof'] = proofText;
+      task['status'] = 'awaiting_review';
+      task['votes'] = <String, bool>{};
+      task['comments'] = <String, String>{};
+    }
+  }
+
+  
+
+  void voteOnTask(String projectName, String taskId, String voter, bool agree, String comment) {
+    final tasks = _projectTasks[projectName];
+    if (tasks == null) return;
+    final task = tasks.firstWhere((t) => t['id'] == taskId, orElse: () => {});
+    if (task.isNotEmpty && task['status'] == 'awaiting_review') {
+      (task['votes'] as Map<String, bool>)[voter] = agree;
+      (task['comments'] as Map<String, String>)[voter] = comment;
+
+      final allMembers = _projects
+        .firstWhere((p) => p['name'] == projectName, orElse: () => {})['members'] as List? ?? [];
+
+      final votes = task['votes'] as Map<String, bool>;
+      if (votes.length >= (allMembers.length / 2).ceil()) {
+        final approvals = votes.values.where((v) => v).length;
+        if (approvals > allMembers.length / 2) {
+          task['status'] = 'Approved';
+        } else {
+          task['status'] = 'Rejected';
+        }
+      }
+    }
+  }
+
+  void voteOnSubtask(String projectName, String taskId, int subtaskIndex, String voter, bool agree, String comment) {
+    final tasks = _projectTasks[projectName];
+    if (tasks == null) return;
+
+    final task = tasks.firstWhere((t) => t['id'] == taskId, orElse: () => {});
+    if (task.isEmpty) return;
+
+    final subtasks = task['subtasks'] as List<dynamic>;
+    if (subtaskIndex < 0 || subtaskIndex >= subtasks.length) return;
+
+    final subtask = subtasks[subtaskIndex];
+
+    // Record vote and comment
+    (subtask['votes'] as Map<String, bool>)[voter] = agree;
+    (subtask['comments'] as Map<String, String>)[voter] = comment;
+
+    // Get all project members
+    final allMembers = _projects
+        .firstWhere((p) => p['name'] == projectName, orElse: () => {})['members'] as List? ?? [];
+
+    // Exclude the assignee from voting logic
+    final assignee = task['assignedTo'];
+    final eligibleVoters = allMembers.where((m) => m != assignee).toList();
+
+    final votes = subtask['votes'] as Map<String, bool>;
+
+    // Wait until all eligible voters have voted
+    if (votes.keys.toSet().containsAll(eligibleVoters)) {
+      final approvals = votes.entries.where((e) => eligibleVoters.contains(e.key) && e.value).length;
+
+      // Approve if more than half of eligible voters voted "yes"
+      subtask['status'] = approvals > (eligibleVoters.length / 2) ? 'Approved' : 'Rejected';
+    }
+  }
+
+
+  double calculateMainTaskProgress(Map<String, dynamic> task) {
+    final subtasks = task['subtasks'] as List<dynamic>;
+    if (subtasks.isEmpty) return 0;
+
+    final approvedCount = subtasks.where((s) => s['status'] == 'Approved').length;
+    return (approvedCount / subtasks.length) * 100;
+  }
+
+  void updateSubtasks(String projectName, String taskId, List<String> updatedTitles) {
+    final tasks = _projectTasks[projectName];
+    if (tasks == null) return;
+    final task = tasks.firstWhere((t) => t['id'] == taskId, orElse: () => {});
+    if (task.isEmpty) return;
+
+    task['subtasks'] = updatedTitles.map((title) => {
+      'title': title,
+      'status': 'Pending',
+      'votes': <String, bool>{},
+      'comments': <String, String>{},
+    }).toList();
+  }
+
+  void submitSubtaskProof(String projectName, String taskId, int subtaskIndex, String user, String comment, String imageUrl) {
+  final tasks = _projectTasks[projectName];
+  if (tasks == null) return;
+
+  final task = tasks.firstWhereOrNull((t) => t['id'] == taskId);
+  if (task == null) return;
+
+  final subtasks = task['subtasks'] as List<dynamic>;
+  if (subtaskIndex < 0 || subtaskIndex >= subtasks.length) return;
+
+  final subtask = subtasks[subtaskIndex];
+  subtask['proof'] = imageUrl;
+  subtask['comment'] = comment;
+  subtask['status'] = 'under_review';
+  subtask['votes'] = <String, bool>{};
+  subtask['comments'] = <String, String>{};
+}
+
+
+
+  void finalizeVotes(String projectName, String taskId, int subtaskIndex) {
+    final tasks = _projectTasks[projectName];
+    if (tasks == null) return;
+
+    final task = tasks.firstWhere((t) => t['id'] == taskId, orElse: () => {});
+    if (task.isEmpty) return;
+
+    final subtasks = task['subtasks'] as List;
+    final subtask = subtasks[subtaskIndex];
+
+    final votes = subtask['votes'] as Map<String, bool>;
+    int approvals = votes.values.where((v) => v == true).length;
+    int rejections = votes.values.where((v) => v == false).length;
+
+    if (approvals > rejections) {
+      subtask['status'] = 'Approved';
+    } else {
+      subtask['status'] = 'Rejected';
+      subtask['votes'] = {}; // allow retry
+    }
+  }
+
+
+
+
+  List<String> getProjectMembers(String projectName) {
+    final project = _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {});
+    return List<String>.from(project['members'] ?? []);
+  }
 
   
   void addProject(Map<String, String> projectData) {

@@ -168,8 +168,6 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
                         MaterialPageRoute(
                           builder: (context) => ProjectStatusScreen(
                             projectName: project['name']!,
-                            completionPercentage: 0,
-                            status: project['status']!,
                             courseName: project['course'] ?? 'N/A',
                           ),
                         ),
