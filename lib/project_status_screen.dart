@@ -45,7 +45,7 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
   double getCompletionPercentage() {
     if (tasks.isEmpty) return 0;
     final confirmed = tasks.where((task) {
-      final subtasks = task['subtasks'] as List<dynamic>? ?? [];
+      final subtasks = (task['subtasks'] ?? []) as List<dynamic>;
       if (subtasks.isEmpty) return false;
       final approvedCount = subtasks.where((s) => s['status'] == 'Approved').length;
       return approvedCount == subtasks.length;
@@ -140,8 +140,7 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
   }
 
   Widget buildTaskCard(Map<String, dynamic> task) {
-    final subtasks = task['subtasks'] as List<dynamic>? ?? [];
-    final isAssigned = task['assignedTo'] == currentUsername;
+    final subtasks = (task['subtasks'] ?? []) as List<dynamic>;
     final canEdit = ['admin', 'officer', 'teacher'].contains(role) || isLeader;
 
     return Card(
@@ -166,7 +165,7 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
             const SizedBox(height: 8),
             ...List.generate(subtasks.length, (i) {
               final sub = subtasks[i];
-              final votes = sub['votes'] as Map<String, bool>;
+              final votes = Map<String, bool>.from(sub['votes'] ?? {});
               final status = sub['status'];
               final proof = sub['proof'] ?? '';
               final comment = sub['comment'] ?? '';
@@ -260,7 +259,12 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton.icon(
-                  onPressed: () => showEditSubtasksDialog(task),
+                  onPressed: () async {
+                    await showEditSubtasksDialog(task);
+                    setState(() {
+                      tasks = db.getTasksForProject(widget.projectName);
+                    });
+                  },
                   icon: const Icon(Icons.edit),
                   label: const Text("Edit Subtasks"),
                 ),
@@ -271,30 +275,36 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
     );
   }
 
-  void showEditSubtasksDialog(Map<String, dynamic> task) {
+  Future<bool> showEditSubtasksDialog(Map<String, dynamic> task) async {
     final newSubtaskController = TextEditingController();
-    final subtasks = List<Map<String, dynamic>>.from(task['subtasks'] ?? []);
+    final rawSubtasks = task['subtasks'];
+    final subtasks = rawSubtasks is List
+        ? List<Map<String, dynamic>>.from(rawSubtasks)
+        : <Map<String, dynamic>>[];
+
     final controllers = subtasks.map((s) => TextEditingController(text: s['title'])).toList();
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text("Edit Subtasks"),
-        content: SingleChildScrollView(
-          child: Column(
-            children: [
-              for (int i = 0; i < controllers.length; i++)
-                Row(
+    return showDialog<bool>(
+        context: context,
+        builder: (context) {
+          return StatefulBuilder(
+            builder: (context, setState) => AlertDialog(
+              title: const Text("Edit Subtasks"),
+              content: SingleChildScrollView(
+                child: Column(
                   children: [
-                    Expanded(child: TextField(controller: controllers[i])),
-                    IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
-                      onPressed: () => setState(() {
-                        controllers.removeAt(i);
-                      }),
-                    ),
-                  ],
-                ),
+                    for (int i = 0; i < controllers.length; i++)
+                      Row(
+                        children: [
+                          Expanded(child: TextField(controller: controllers[i])),
+                          IconButton(
+                            icon: const Icon(Icons.delete, color: Colors.red),
+                            onPressed: () => setState(() {
+                              controllers.removeAt(i);
+                            }),
+                          ),
+                        ],
+                      ),
               TextField(
                 controller: newSubtaskController,
                 decoration: const InputDecoration(hintText: "New subtask"),
@@ -314,21 +324,61 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
             ],
           ),
         ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              final updatedTitles = controllers.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
-              db.updateSubtasks(widget.projectName, task['id'], updatedTitles);
-              setState(() {
-                tasks = db.getTasksForProject(widget.projectName);
-              });
-              Navigator.pop(context);
-            },
-            child: const Text("Save"),
-          ),
-        ],
-      ),
-    );
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    final updatedTitles = controllers.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
+
+                    final rawExisting = task['subtasks'];
+                    final existingSubtasks = rawExisting is List
+                        ? List<Map<String, dynamic>>.from(rawExisting)
+                        : <Map<String, dynamic>>[];
+
+                    final newSubtasks = updatedTitles.map((title) {
+                      final match = existingSubtasks
+                          .firstWhere(
+                            (sub) => sub['title'].toString().trim().toLowerCase() == title.trim().toLowerCase(),
+                            orElse: () => <String, dynamic>{},
+                          );
+
+                      if (match.isNotEmpty) {
+                        return {
+                          'title': title,
+                          'status': match['status'],
+                          'proof': match['proof'],
+                          'comment': match['comment'],
+                          'votes': (match['votes'] is Map)
+                              ? Map.fromEntries(
+                                  (match['votes'] as Map).entries.where((e) =>
+                                      e.key is String &&
+                                      (e.value is bool || e.value == true || e.value == false)).map(
+                                    (e) => MapEntry(e.key as String, e.value == true),
+                                  ),
+                                )
+                              : <String, bool>{},
+                        };
+                      } else {
+                        return {
+                          'title': title,
+                          'status': 'Pending',
+                          'proof': '',
+                          'comment': '',
+                          'votes': {},
+                        };
+                      }
+                    }).toList();
+
+                    db.replaceSubtasks(widget.projectName, task['id'], newSubtasks);
+
+                    Navigator.pop(context, true); 
+                  },
+                  child: const Text("Save"),
+                ),
+              ],
+            ),
+          );
+        },
+      ).then((value) => value ?? false);
   }
 
   @override

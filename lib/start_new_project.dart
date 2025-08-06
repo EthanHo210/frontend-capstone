@@ -36,13 +36,14 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
               u['role'] != 'officer')
           .map((u) => {
                 'username': u['username'].toString(),
+                'fullName': u['fullName'].toString(),
                 'role': u['role'].toString(),
               })
           .toList();
       _userItems = _userList.map((user) {
         final display = user['role'] == 'teacher'
-          ? '${user['username']} (teacher)'
-          : user['username'] ?? '';
+          ? '${user['fullName']} (teacher)'
+          : user['fullName'] ?? '';
         return MultiSelectItem<String>(user['username']!, display);
       }).toList();
       _availableCourses = db.getCourses();

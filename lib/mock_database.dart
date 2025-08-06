@@ -190,16 +190,44 @@ final Map<String, String> _projectLeaders = {};
   void updateSubtasks(String projectName, String taskId, List<String> updatedTitles) {
     final tasks = _projectTasks[projectName];
     if (tasks == null) return;
-    final task = tasks.firstWhere((t) => t['id'] == taskId, orElse: () => {});
+
+    final Map<String, dynamic> task = tasks.firstWhere(
+      (t) => t['id'] == taskId,
+      orElse: () => <String, dynamic>{}, // empty map fallback
+    );
+
     if (task.isEmpty) return;
 
-    task['subtasks'] = updatedTitles.map((title) => {
-      'title': title,
-      'status': 'Pending',
-      'votes': <String, bool>{},
-      'comments': <String, String>{},
-    }).toList();
+    final existingSubtasks = task['subtasks'] as List<dynamic>? ?? [];
+
+    final updatedSubtasks = <Map<String, dynamic>>[];
+
+    for (var title in updatedTitles) {
+      final Map<String, dynamic>? existing = existingSubtasks.firstWhere(
+        (s) => s['title'] == title,
+        orElse: () => null,
+      );
+
+      if (existing != null) {
+        updatedSubtasks.add(existing);
+      } else {
+        updatedSubtasks.add({
+          'id': DateTime.now().microsecondsSinceEpoch.toString(),
+          'title': title,
+          'status': 'Pending',
+          'votes': <String, bool>{},
+          'comments': <String, String>{},
+          'proof': '',
+          'submittedBy': null,
+        });
+      }
+    }
+
+    task['subtasks'] = updatedSubtasks;
   }
+
+
+
 
   void submitSubtaskProof(String projectName, String taskId, int subtaskIndex, String user, String comment, String imageUrl) {
   final tasks = _projectTasks[projectName];
@@ -218,8 +246,6 @@ final Map<String, String> _projectLeaders = {};
   subtask['votes'] = <String, bool>{};
   subtask['comments'] = <String, String>{};
 }
-
-
 
   void finalizeVotes(String projectName, String taskId, int subtaskIndex) {
     final tasks = _projectTasks[projectName];
@@ -243,7 +269,15 @@ final Map<String, String> _projectLeaders = {};
     }
   }
 
-
+  void replaceSubtasks(String projectName, String taskId, List<Map<String, dynamic>> newSubtasks) {
+    final tasks = _projectTasks[projectName];
+    if (tasks != null) {
+      final index = tasks.indexWhere((t) => t['id'] == taskId);
+      if (index != -1) {
+        tasks[index]['subtasks'] = newSubtasks;
+      }
+    }
+  }
 
 
   List<String> getProjectMembers(String projectName) {
