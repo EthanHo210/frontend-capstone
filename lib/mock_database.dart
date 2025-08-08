@@ -1,14 +1,18 @@
 import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
+import 'package:uuid/uuid.dart';
 
 class MockDatabase {
   static final MockDatabase _instance = MockDatabase._internal();
   factory MockDatabase() => _instance;
   MockDatabase._internal();
 
+  final Uuid _uuid = Uuid();
+
   final List<Map<String, dynamic>> _users = [
     {
+      'id': Uuid().v4(),
       'username': 'testuser1',
       'email': 'user1@example.com',
       'password': sha256.convert(utf8.encode('password123')).toString(),
@@ -16,6 +20,7 @@ class MockDatabase {
       'fullName': 'Alice Nguyen',
     },
     {
+      'id': Uuid().v4(),
       'username': 'testuser2',
       'email': 'user2@example.com',
       'password': sha256.convert(utf8.encode('password123')).toString(),
@@ -23,6 +28,7 @@ class MockDatabase {
       'fullName': 'Brian Tran',
     },
     {
+      'id': Uuid().v4(),
       'username': 'testuser3',
       'email': 'user3@example.com',
       'password': sha256.convert(utf8.encode('password123')).toString(),
@@ -30,6 +36,7 @@ class MockDatabase {
       'fullName': 'Cynthia Le',
     },
     {
+      'id': Uuid().v4(),
       'username': 'teacher1',
       'email': 'teacher@example.com',
       'password': sha256.convert(utf8.encode('teacherpass')).toString(),
@@ -37,13 +44,15 @@ class MockDatabase {
       'fullName': 'David Hoang',
     },
     {
+      'id': Uuid().v4(),
       'username': 'admin',
       'email': 'admin@example.com',
       'password': sha256.convert(utf8.encode('adminpass')).toString(),
       'role': 'admin',
-      'fullName': 'Emma Pham',
+      'fullName': '',
     },
     {
+      'id': Uuid().v4(),
       'username': 'officer1',
       'email': 'officer@example.com',
       'password': sha256.convert(utf8.encode('officerpass')).toString(),
@@ -155,6 +164,10 @@ final Map<String, String> _projectLeaders = {};
 
     final subtask = subtasks[subtaskIndex];
 
+    // ensure maps exist and have correct typing
+    subtask['votes'] = (subtask['votes'] is Map) ? Map<String, bool>.from(subtask['votes'] as Map) : <String, bool>{};
+    subtask['comments'] = (subtask['comments'] is Map) ? Map<String, String>.from(subtask['comments'] as Map) : <String, String>{};
+
     // Record vote and comment
     (subtask['votes'] as Map<String, bool>)[voter] = agree;
     (subtask['comments'] as Map<String, String>)[voter] = comment;
@@ -175,6 +188,10 @@ final Map<String, String> _projectLeaders = {};
 
       // Approve if more than half of eligible voters voted "yes"
       subtask['status'] = approvals > (eligibleVoters.length / 2) ? 'Approved' : 'Rejected';
+    }
+
+    if (subtask['comments'] == null || subtask['comments'] is! Map<String, String>) {
+      subtask['comments'] = <String, String>{};
     }
   }
 
@@ -291,6 +308,7 @@ final Map<String, String> _projectLeaders = {};
     final members = projectData['members']!.split(',').map((e) => e.trim()).toList();
 
     _projects.add({
+      'id': _uuid.v4(),
       'name': projectData['name']!,
       'members': members,
       'startDate': projectData['startDate']!,
@@ -311,6 +329,7 @@ final Map<String, String> _projectLeaders = {};
     }
   }
 
+  
   List<Map<String, dynamic>> getAllProjects() => _projects;
 
   List<Map<String, dynamic>> getProjectsForCurrentUser() {
@@ -397,10 +416,12 @@ final Map<String, String> _projectLeaders = {};
     final hashedPassword = sha256.convert(utf8.encode(rawPassword)).toString();
 
     _users.add({
+      'id': _uuid.v4(),
       'username': username,
       'email': email,
       'password': hashedPassword,
       'role': role,
+      'fullName': '',
     });
 
     _userProjects[username] = {
@@ -462,10 +483,12 @@ final Map<String, String> _projectLeaders = {};
     final hashedPassword = sha256.convert(utf8.encode(rawPassword)).toString();
 
     _users.add({
+      'id': _uuid.v4(),
       'username': username,
       'email': email,
       'password': hashedPassword,
       'role': user['role'],
+      'fullName': user['fullName'] ?? '',
     });
 
     _userProjects[username] = {
@@ -484,6 +507,8 @@ final Map<String, String> _projectLeaders = {};
   String? getUsernameByEmail(String email) => _users.firstWhere((u) => u['email'] == email, orElse: () => {})['username'];
   String? getEmailByUsername(String username) => _users.firstWhere((u) => u['username'] == username, orElse: () => {})['email'];
   String? getUserNameById(String id) => _users.firstWhere((u) => u['username'] == id, orElse: () => {})['username'];
+  String? getFullNameByEmail(String email) => _users.firstWhere((u) => u['email'] == email, orElse: () => {})['fullName'];
+  String? getFullNameByUsername(String username) => _users.firstWhere((u) => u['username'] == username, orElse: () => {})['fullName'];
 
   String getUserRole(String id) =>
       _users.firstWhere((u) => u['username'] == id || u['email'] == id, orElse: () => {'role': 'user'})['role'];

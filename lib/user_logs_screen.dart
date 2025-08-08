@@ -29,7 +29,7 @@ class _UserLogsScreenState extends State<UserLogsScreen> {
 
       final role = user['role'];
       if (isTeacher && role == 'teacher') return false;
-      if (!isTeacher && role != 'teacher' && role != 'user') return false;
+      if (!isTeacher && role != 'teacher' && role != 'user' && role != 'officer') return false;
 
       return true;
     }).toList();
@@ -38,12 +38,16 @@ class _UserLogsScreenState extends State<UserLogsScreen> {
 
     Map<String, List<Map<String, dynamic>>> categorized = {
       'Teachers': [],
+      'Officers': [],
       'Students': [],
+      
     };
 
     for (var user in filteredUsers) {
       if (user['role'] == 'teacher') {
         categorized['Teachers']!.add(user);
+      } else if (user['role'] == 'officer') {
+        categorized['Officers']!.add(user);
       } else {
         categorized['Students']!.add(user);
       }
@@ -84,8 +88,11 @@ class _UserLogsScreenState extends State<UserLogsScreen> {
         children: [
           if (!isTeacher && categorized['Teachers']!.isNotEmpty)
             _buildCategory('Teachers', categorized['Teachers']!, isTeacher),
+          if (categorized['Officers']!.isNotEmpty)
+            _buildCategory('Officers', categorized['Officers']!, isTeacher),
           if (categorized['Students']!.isNotEmpty)
             _buildCategory('Students', categorized['Students']!, isTeacher),
+          
         ],
       ),
     );
@@ -105,6 +112,7 @@ class _UserLogsScreenState extends State<UserLogsScreen> {
 
   Widget _buildUserCard(Map<String, dynamic> user, bool isTeacher) {
     final username = user['username'];
+    final fullName = user['fullName'];
     final projectInfo = db.getProjectInfoForUser(username);
 
     return Card(
@@ -118,8 +126,13 @@ class _UserLogsScreenState extends State<UserLogsScreen> {
             ? Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(username, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.blueText)),
+                  Text(fullName, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.blueText)),
+                  /*const SizedBox(height: 4),
+                  Text('ID: ${user['id'] ?? 'N/A'}', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),*/
+
                   const SizedBox(height: 8),
+                  Text('Username: ${user['username']}', style: GoogleFonts.poppins()),
+                  Text('Email: ${user['email']}', style: GoogleFonts.poppins()),
                   Text('Project team: ${projectInfo?['project'] ?? 'N/A'}', style: GoogleFonts.poppins()),
                   Text('Project status: ${projectInfo?['rank'] ?? 'N/A'}', style: GoogleFonts.poppins()),
                   Text('Assigned task: (Coming soon)', style: GoogleFonts.poppins()),
@@ -130,8 +143,12 @@ class _UserLogsScreenState extends State<UserLogsScreen> {
             : Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(username, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.blueText)),
+                  Text(fullName, style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.blueText)),
+                  /*const SizedBox(height: 4),
+                  Text('ID: ${user['id'] ?? 'N/A'}', style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey)),*/
+
                   const SizedBox(height: 8),
+                  Text('Username: ${user['username']}', style: GoogleFonts.poppins()),
                   Text('Email: ${user['email']}', style: GoogleFonts.poppins()),
                 ],
               ),

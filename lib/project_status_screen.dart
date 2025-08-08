@@ -26,6 +26,7 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
   final db = MockDatabase();
   late Map<String, dynamic> project;
   late String currentUsername;
+  late String currentFullName;
   late String role;
   late bool isLeader;
   late List<Map<String, dynamic>> tasks;
@@ -35,6 +36,7 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
   void initState() {
     super.initState();
     currentUsername = db.getUsernameByEmail(db.currentLoggedInUser ?? '') ?? db.currentLoggedInUser ?? '';
+    currentFullName = db.getFullNameByUsername(currentUsername) ?? currentUsername;
     role = db.getUserRole(currentUsername);
     project = db.getAllProjects().firstWhere((p) => p['name'] == widget.projectName);
     isLeader = db.getProjectLeader(widget.projectName) == currentUsername;
@@ -51,6 +53,50 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
       return approvedCount == subtasks.length;
     }).length;
     return (confirmed / tasks.length) * 100;
+  }
+
+  void showVoteCommentDialog(Map<String, dynamic> task, int subtaskIndex, bool vote) async {
+    final controllerWhy = TextEditingController();
+    final controllerBetter = TextEditingController();
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(vote ? 'Agree with submission' : 'Disagree with submission'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: controllerWhy,
+              decoration: InputDecoration(labelText: 'Why do you ${vote ? "agree" : "disagree"} with this?'),
+            ),
+            TextField(
+              controller: controllerBetter,
+              decoration: const InputDecoration(labelText: 'What could be done better?'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              final feedback =
+                  '${controllerWhy.text.trim()}\nSuggestions: ${controllerBetter.text.trim()}';
+              db.voteOnSubtask(widget.projectName, task['id'], subtaskIndex, currentUsername, vote, feedback);
+              final subtasks = task['subtasks'] as List<dynamic>;
+              final sub = subtasks[subtaskIndex];
+              final votes = Map<String, bool>.from(sub['votes'] ?? {});
+              final allOthersVoted = projectMembers.where((m) => m != task['assignedTo']).every((m) => votes.containsKey(m));
+              if (allOthersVoted) db.finalizeVotes(widget.projectName, task['id'], subtaskIndex);
+              setState(() {
+                tasks = db.getTasksForProject(widget.projectName);
+              });
+              Navigator.pop(context);
+            },
+            child: const Text('Submit'),
+          ),
+        ],
+      ),
+    );
   }
 
   void showSubmitDialog(Map<String, dynamic> task, int subtaskIndex) async {
@@ -141,6 +187,12 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
 
   Widget buildTaskCard(Map<String, dynamic> task) {
     final subtasks = (task['subtasks'] ?? []) as List<dynamic>;
+
+    final assignedToRaw = task['assignedTo']?.toString() ?? '';
+    final assignedFullName = db.getFullNameByUsername(assignedToRaw)
+        ?? db.getFullNameByEmail(assignedToRaw)
+        ?? assignedToRaw;
+
     final canEdit = ['admin', 'officer', 'teacher'].contains(role) || isLeader;
 
     return Card(
@@ -161,7 +213,7 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
               ],
             ),
             const SizedBox(height: 4),
-            Text('Assigned to: ${task['assignedTo']}'),
+            Text('Assigned to: $assignedFullName'),
             const SizedBox(height: 8),
             ...List.generate(subtasks.length, (i) {
               final sub = subtasks[i];
@@ -172,10 +224,6 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
               final alreadyVoted = votes.containsKey(currentUsername);
               final isAssignedToMe = task['assignedTo'] == currentUsername;
               final hasSubmitted = proof.isNotEmpty || comment.isNotEmpty;
-
-              bool allOthersVoted = projectMembers
-                  .where((m) => m != task['assignedTo'])
-                  .every((m) => votes.containsKey(m));
 
               return Row(
                 children: [
@@ -203,6 +251,149 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                                 ),
                               if (comment.isNotEmpty)
                                 Text('Comment: $comment', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                              // show vote comments (read from 'comments' because mock_database.voteOnSubtask stores there)
+                              // show vote comments (stored in 'comments' in the mock DB)
+                              // personalized comment viewing: only commenter or subtask assignee can view a given vote comment
+                              if (sub['comments'] != null && sub['comments'] is Map)
+                                ...((Map<String, dynamic>.from(sub['comments'] as Map)).entries.map((entry) {
+                                  final voter = entry.key.toString();
+                                  final feedback = entry.value?.toString() ?? '';
+                                  final allowedToView = (voter == currentUsername) || isAssignedToMe;
+
+                                  // Get full name from DB (fallback to username if not found)
+                                  final fullName = db.getFullNameByUsername(voter) ?? voter;
+
+                                  return Padding(
+                                    padding: const EdgeInsets.only(top: 4.0),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text("$fullName's comments", style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
+
+                                        TextButton(
+                                          style: TextButton.styleFrom(
+                                            padding: EdgeInsets.zero,
+                                            minimumSize: const Size(0, 0),
+                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                          ),
+                                          onPressed: () async {
+                                            if (!allowedToView) {
+                                              // If not allowed, show an access denied message
+                                              await showDialog<void>(
+                                                context: context,
+                                                builder: (ctx) => AlertDialog(
+                                                  title: const Text('Access Denied'),
+                                                  content: const Text('You do not have permission to view this comment.'),
+                                                  actions: [
+                                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+                                                  ],
+                                                ),
+                                              );
+                                              return;
+                                            }
+
+                                            if (voter == currentUsername) {
+                                              // Split existing comment into Q1 and Q2
+                                              String q1 = '';
+                                              String q2 = '';
+                                              final parts = feedback.split(RegExp(r'Suggestions:\s*', caseSensitive: false));
+                                              if (parts.isNotEmpty) q1 = parts[0].trim();
+                                              if (parts.length > 1) q2 = parts[1].trim();
+
+                                              final q1Controller = TextEditingController(text: q1);
+                                              final q2Controller = TextEditingController(text: q2);
+
+                                              final newComment = await showDialog<String>(
+                                                context: context,
+                                                builder: (ctx) => AlertDialog(
+                                                  title: const Text('Your comment (edit)'),
+                                                  content: Column(
+                                                    mainAxisSize: MainAxisSize.min,
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      TextField(
+                                                        controller: q1Controller,
+                                                        maxLines: 3,
+                                                        decoration: const InputDecoration(
+                                                          labelText: 'Why do you agree/disagree with this?',
+                                                          hintText: 'Enter your reasoning...',
+                                                        ),
+                                                      ),
+                                                      const SizedBox(height: 8),
+                                                      TextField(
+                                                        controller: q2Controller,
+                                                        maxLines: 3,
+                                                        decoration: const InputDecoration(
+                                                          labelText: 'What could be done better?',
+                                                          hintText: 'Enter your suggestions...',
+                                                        ),
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  actions: [
+                                                    TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancel')),
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(
+                                                        ctx,
+                                                        '${q1Controller.text.trim()}\nSuggestions: ${q2Controller.text.trim()}',
+                                                      ),
+                                                      child: const Text('Save'),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+
+                                              if (newComment != null) {
+                                                final currentVoteMap = (sub['votes'] is Map)
+                                                    ? Map<String, dynamic>.from(sub['votes'] as Map)
+                                                    : <String, dynamic>{};
+                                                final currentVoteValue = (currentVoteMap[currentUsername] == true);
+
+                                                db.voteOnSubtask(widget.projectName, task['id'], i, currentUsername, currentVoteValue, newComment);
+
+                                                setState(() {
+                                                  tasks = db.getTasksForProject(widget.projectName);
+                                                });
+                                              }
+                                            } else {
+                                              // Read-only split view
+                                              String q1 = '';
+                                              String q2 = '';
+                                              final parts = feedback.split(RegExp(r'Suggestions:\s*', caseSensitive: false));
+                                              if (parts.isNotEmpty) q1 = parts[0].trim();
+                                              if (parts.length > 1) q2 = parts[1].trim();
+
+                                              await showDialog<void>(
+                                                context: context,
+                                                builder: (ctx) => AlertDialog(
+                                                  title: Text("$fullName's comment"),
+                                                  content: SingleChildScrollView(
+                                                    child: Column(
+                                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                                      children: [
+                                                        const Text('Why do you agree/disagree with this?'),
+                                                        Text(q1.isNotEmpty ? q1 : 'No answer'),
+                                                        const SizedBox(height: 8),
+                                                        const Text('What could be done better?'),
+                                                        Text(q2.isNotEmpty ? q2 : 'No suggestions'),
+                                                      ],
+                                                    ),
+                                                  ),
+                                                  actions: [
+                                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+                                                  ],
+                                                ),
+                                              );
+                                            }
+
+                                          },
+                                          child: const Text('View Comment', style: TextStyle(fontSize: 12)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }).toList()),
+
                             ],
                           ),
                       ],
@@ -222,19 +413,11 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                       children: [
                         IconButton(
                           icon: const Icon(Icons.thumb_up, color: Colors.green),
-                          onPressed: () => setState(() {
-                            db.voteOnSubtask(widget.projectName, task['id'], i, currentUsername, true, '');
-                            if (allOthersVoted) db.finalizeVotes(widget.projectName, task['id'], i);
-                            tasks = db.getTasksForProject(widget.projectName);
-                          }),
+                          onPressed: () => showVoteCommentDialog(task, i, true),
                         ),
                         IconButton(
                           icon: const Icon(Icons.thumb_down, color: Colors.red),
-                          onPressed: () => setState(() {
-                            db.voteOnSubtask(widget.projectName, task['id'], i, currentUsername, false, '');
-                            if (allOthersVoted) db.finalizeVotes(widget.projectName, task['id'], i);
-                            tasks = db.getTasksForProject(widget.projectName);
-                          }),
+                          onPressed: () => showVoteCommentDialog(task, i, false),
                         ),
                       ],
                     )
@@ -335,38 +518,49 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                         : <Map<String, dynamic>>[];
 
                     final newSubtasks = updatedTitles.map((title) {
-                      final match = existingSubtasks
-                          .firstWhere(
-                            (sub) => sub['title'].toString().trim().toLowerCase() == title.trim().toLowerCase(),
-                            orElse: () => <String, dynamic>{},
-                          );
+                      // Find existing subtask by title (case-insensitive)
+                      final match = existingSubtasks.firstWhere(
+                        (sub) => sub['title'].toString().trim().toLowerCase() == title.trim().toLowerCase(),
+                        orElse: () => <String, dynamic>{},
+                      );
 
-                      if (match.isNotEmpty) {
-                        return {
-                          'title': title,
-                          'status': match['status'],
-                          'proof': match['proof'],
-                          'comment': match['comment'],
-                          'votes': (match['votes'] is Map)
-                              ? Map.fromEntries(
-                                  (match['votes'] as Map).entries.where((e) =>
-                                      e.key is String &&
-                                      (e.value is bool || e.value == true || e.value == false)).map(
-                                    (e) => MapEntry(e.key as String, e.value == true),
-                                  ),
-                                )
-                              : <String, bool>{},
-                        };
-                      } else {
-                        return {
-                          'title': title,
-                          'status': 'Pending',
-                          'proof': '',
-                          'comment': '',
-                          'votes': {},
-                        };
+                      // Preserve existing id if available, otherwise create one
+                      final id = (match is Map && match['id'] != null && match['id'].toString().isNotEmpty)
+                          ? match['id'].toString()
+                          : DateTime.now().microsecondsSinceEpoch.toString();
+
+                      // Preserve fields when present, otherwise default
+                      final status = (match is Map && match['status'] != null) ? match['status'] : 'Pending';
+                      final proof = (match is Map && match['proof'] != null) ? match['proof'] : '';
+                      final comment = (match is Map && match['comment'] != null) ? match['comment'] : '';
+
+                      // Normalize votes to Map<String,bool>
+                      Map<String, bool> votesMap = {};
+                      if (match is Map && match['votes'] is Map) {
+                        (match['votes'] as Map).forEach((k, v) {
+                          if (k != null) votesMap[k.toString()] = (v == true);
+                        });
                       }
+
+                      // Preserve voter comments map (the one that was being lost)
+                      Map<String, String> commentsMap = {};
+                      if (match is Map && match['comments'] is Map) {
+                        (match['comments'] as Map).forEach((k, v) {
+                          if (k != null) commentsMap[k.toString()] = v?.toString() ?? '';
+                        });
+                      }
+
+                      return {
+                        'id': id,
+                        'title': title,
+                        'status': status,
+                        'proof': proof,
+                        'comment': comment,       // submitter's single comment (if any)
+                        'votes': votesMap,       // voters' boolean votes
+                        'comments': commentsMap, // voters' textual feedback (preserved!)
+                      };
                     }).toList();
+
 
                     db.replaceSubtasks(widget.projectName, task['id'], newSubtasks);
 

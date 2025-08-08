@@ -64,11 +64,13 @@ class _TogetherAppState extends State<TogetherApp> {
           selectedItemColor: AppColors.blueText,
           unselectedItemColor: Colors.grey,
         ),
-        textTheme: GoogleFonts.poppinsTextTheme().apply(
+        textTheme: GoogleFonts.poppinsTextTheme(
+          ThemeData.light().textTheme,
+        ).apply(
           bodyColor: AppColors.blueText,
           displayColor: AppColors.blueText,
         ),
-        fontFamily: GoogleFonts.poppins().fontFamily,
+
         colorScheme: ColorScheme.fromSwatch().copyWith(
           primary: AppColors.blueText,
           secondary: AppColors.navbar,
@@ -78,7 +80,9 @@ class _TogetherAppState extends State<TogetherApp> {
         brightness: Brightness.dark,
         scaffoldBackgroundColor: const Color(0xFF121212),
         primarySwatch: Colors.teal,
-        textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
+        textTheme: GoogleFonts.poppinsTextTheme(
+          ThemeData.dark().textTheme,
+        ),
       ),
       themeMode: _themeMode,
       initialRoute: '/login',

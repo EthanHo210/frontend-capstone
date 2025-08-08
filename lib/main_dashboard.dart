@@ -8,6 +8,7 @@ import 'main.dart';
 import 'dart:async';
 import 'select_courses_screen.dart';
 import 'admin_main_hub_screen.dart';
+import 'project_status_screen.dart';
 
 class MainDashboard extends StatefulWidget {
   const MainDashboard({super.key});
@@ -84,6 +85,36 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
     });
   }
 
+  Map<String, dynamic>? _getLastCreatedProjectForUser(String username, String role) {
+    final allProjects = MockDatabase().getAllProjects();
+
+    if (role == 'admin' || role == 'officer') {
+      return allProjects.reduce((a, b) {
+        final aTime = DateTime.tryParse(a['createdAt'] ?? '') ?? DateTime(1970);
+        final bTime = DateTime.tryParse(b['createdAt'] ?? '') ?? DateTime(1970);
+        return aTime.isAfter(bTime) ? a : b;
+      });
+    }
+
+    final userProjects = allProjects.where((project) {
+      final members = project['members'] is List
+          ? List<String>.from(project['members'])
+          : (project['members'] as String)
+              .split(',')
+              .map((e) => e.trim())
+              .toList();
+      return members.contains(username);
+    }).toList();
+
+    if (userProjects.isEmpty) return null;
+
+    return userProjects.reduce((a, b) {
+      final aTime = DateTime.tryParse(a['createdAt'] ?? '') ?? DateTime(1970);
+      final bTime = DateTime.tryParse(b['createdAt'] ?? '') ?? DateTime(1970);
+      return aTime.isAfter(bTime) ? a : b;
+    });
+  }
+
   void _onItemTapped(int index) async {
     final db = MockDatabase();
     final user = db.currentLoggedInUser ?? '';
@@ -110,7 +141,25 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
           );
           break;
         case 2:
-          // Tracking
+          final lastProject = _getLastCreatedProjectForUser(username, _userRole);
+          if (lastProject != null) {
+            final projectName = lastProject['name'];
+            final courseName = lastProject['course'];
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProjectStatusScreen(
+                  projectName: projectName,
+                  courseName: courseName,
+                ),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("You are not in any project.")),
+            );
+          }
           break;
         case 3:
           Navigator.push(
@@ -154,7 +203,25 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
           );
           break;
         case 2:
-          // Tracking (placeholder or navigation)
+          final lastProject = _getLastCreatedProjectForUser(username, _userRole);
+          if (lastProject != null) {
+            final projectName = lastProject['name'];
+            final courseName = lastProject['course'];
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProjectStatusScreen(
+                  projectName: projectName,
+                  courseName: courseName,
+                ),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("You are not in any project.")),
+            );
+          }
           break;
         case 3:
           Navigator.push(
@@ -189,8 +256,25 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
           );
           break;
         case 1:
-          // Tracking
-          break;
+          final lastProject = _getLastCreatedProjectForUser(username, _userRole);
+          if (lastProject != null) {
+            final projectName = lastProject['name'];
+            final courseName = lastProject['course'];
+
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => ProjectStatusScreen(
+                  projectName: projectName,
+                  courseName: courseName,
+                ),
+              ),
+            );
+          } else {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text("You are not in any project.")),
+            );
+          }
         case 2:
           Navigator.push(
             context,
@@ -234,8 +318,6 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
           : (project['members'] as String).split(',').map((e) => e.trim()).toList();
       return members.contains(username);
     }).toList();
-
-
 
     if (projects.isEmpty) {
       return [
@@ -305,7 +387,8 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
   Widget build(BuildContext context) {
     final db = MockDatabase();
     final userEmail = db.currentLoggedInUser ?? 'Guest';
-    final username = db.getUsernameByEmail(userEmail) ?? userEmail.split('@')[0];
+    final username = db.getUsernameByEmail(userEmail) ?? userEmail;
+    final fullName = db.getFullNameByUsername(userEmail) ?? userEmail.split('@')[0];
     final isLoggedIn = userEmail != 'Guest';
 
     final projectInfo = _projectInfo ?? {
@@ -377,7 +460,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                   CircleAvatar(
                     backgroundColor: AppColors.navbar,
                     child: Text(
-                      username.isNotEmpty ? username[0].toUpperCase() : '?',
+                      fullName.isNotEmpty ? fullName[0].toUpperCase() : username[0].toUpperCase(),
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.bold,
                         color: AppColors.blueText,
@@ -386,7 +469,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    username,
+                    fullName.isNotEmpty ? fullName : username,
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w500,
                       color: AppColors.blueText,

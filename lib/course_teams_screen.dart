@@ -20,6 +20,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
   late List<Map<String, dynamic>> projects;
   late String currentUser;
   late String username;
+  late String fullName;
   late bool isTeacher;
 
   @override
@@ -27,6 +28,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
     super.initState();
     currentUser = db.currentLoggedInUser ?? '';
     username = db.getUsernameByEmail(currentUser) ?? currentUser;
+    fullName = db.getFullNameByUsername(currentUser) ?? currentUser;
     isTeacher = db.isTeacher(currentUser);
   }
 
@@ -116,7 +118,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
         child: projects.isEmpty
             ? Center(
                 child: Text(
-                  'No projects available.\nPlease make one.',
+                  'No projects available in this course.\nPlease make one.',
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
                     fontSize: 18,
@@ -155,7 +157,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
 
                   final studentNames = memberIds
                       .map((id) {
-                        final user = db.getUserNameById(id);
+                        final user = db.getFullNameByUsername(id);
                         return user != null ? user[0].toUpperCase() + user.substring(1) : 'Unknown';
                       })
                       .toList();
@@ -193,6 +195,13 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
                                     fontSize: 16,
                                   ),
                                 ),
+
+                                /*const SizedBox(height: 4),
+                                  Text(
+                                    'ID: ${project['id'] ?? 'N/A'}',
+                                    style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
+                                  ),*/
+
                                 const SizedBox(height: 4),
                                 Text(
                                   'Course: $course',
