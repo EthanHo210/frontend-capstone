@@ -186,277 +186,273 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
   }
 
   Widget buildTaskCard(Map<String, dynamic> task) {
-    final subtasks = (task['subtasks'] ?? []) as List<dynamic>;
+  final subtasks = (task['subtasks'] ?? []) as List<dynamic>;
 
-    final assignedToRaw = task['assignedTo']?.toString() ?? '';
-    final assignedFullName = db.getFullNameByUsername(assignedToRaw)
-        ?? db.getFullNameByEmail(assignedToRaw)
-        ?? assignedToRaw;
+  final assignedToRaw = task['assignedTo']?.toString() ?? '';
+  final assignedFullName = db.getFullNameByUsername(assignedToRaw)
+      ?? db.getFullNameByEmail(assignedToRaw)
+      ?? assignedToRaw;
 
-    final canEdit = ['admin', 'officer', 'teacher'].contains(role) || isLeader;
+  final canEdit = ['admin', 'officer', 'teacher'].contains(role) || isLeader;
 
-    return Card(
-      margin: const EdgeInsets.symmetric(vertical: 8),
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
+  // NEW: check membership once per card
+  final isProjectMember = projectMembers.contains(currentUsername);
+
+  return Card(
+    margin: const EdgeInsets.symmetric(vertical: 8),
+    child: Padding(
+      padding: const EdgeInsets.all(12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                subtasks.every((s) => s['status'] == 'Approved') ? Icons.check_circle : Icons.pending,
+                color: subtasks.every((s) => s['status'] == 'Approved') ? Colors.green : Colors.orange,
+              ),
+              const SizedBox(width: 8),
+              Text(task['title'] ?? 'Unnamed Task', style: const TextStyle(fontWeight: FontWeight.bold)),
+            ],
+          ),
+          const SizedBox(height: 4),
+          // Assigned full name
+          Text('Assigned to: $assignedFullName'),
+          const SizedBox(height: 8),
+          ...List.generate(subtasks.length, (i) {
+            final sub = subtasks[i];
+            final votes = Map<String, bool>.from(sub['votes'] ?? {});
+            final status = sub['status'];
+            final proof = sub['proof'] ?? '';
+            final comment = sub['comment'] ?? '';
+            final alreadyVoted = votes.containsKey(currentUsername);
+            final isAssignedToMe = task['assignedTo'] == currentUsername;
+            final hasSubmitted = proof.isNotEmpty || comment.isNotEmpty;
+
+            // NEW: only members can vote/comment view (unless it's the voter or the assignee)
+            final canVote = !isAssignedToMe && status == 'under_review' && !alreadyVoted && isProjectMember;
+
+            return Row(
               children: [
-                Icon(
-                  subtasks.every((s) => s['status'] == 'Approved') ? Icons.check_circle : Icons.pending,
-                  color: subtasks.every((s) => s['status'] == 'Approved') ? Colors.green : Colors.orange,
-                ),
-                const SizedBox(width: 8),
-                Text(task['title'] ?? 'Unnamed Task', style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-            ),
-            const SizedBox(height: 4),
-            Text('Assigned to: $assignedFullName'),
-            const SizedBox(height: 8),
-            ...List.generate(subtasks.length, (i) {
-              final sub = subtasks[i];
-              final votes = Map<String, bool>.from(sub['votes'] ?? {});
-              final status = sub['status'];
-              final proof = sub['proof'] ?? '';
-              final comment = sub['comment'] ?? '';
-              final alreadyVoted = votes.containsKey(currentUsername);
-              final isAssignedToMe = task['assignedTo'] == currentUsername;
-              final hasSubmitted = proof.isNotEmpty || comment.isNotEmpty;
-
-              return Row(
-                children: [
-                  const Icon(Icons.arrow_right, size: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(sub['title']),
-                        if (hasSubmitted)
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              if (proof.isNotEmpty)
-                                GestureDetector(
-                                  onTap: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (_) => AlertDialog(
-                                        content: Image.memory(base64Decode(proof)),
-                                      ),
-                                    );
-                                  },
-                                  child: Text('Tap to view image proof', style: TextStyle(decoration: TextDecoration.underline)),
-                                ),
-                              if (comment.isNotEmpty)
-                                Text('Comment: $comment', style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                              // show vote comments (read from 'comments' because mock_database.voteOnSubtask stores there)
-                              // show vote comments (stored in 'comments' in the mock DB)
-                              // personalized comment viewing: only commenter or subtask assignee can view a given vote comment
-                              if (sub['comments'] != null && sub['comments'] is Map)
-                                ...((Map<String, dynamic>.from(sub['comments'] as Map)).entries.map((entry) {
-                                  final voter = entry.key.toString();
-                                  final feedback = entry.value?.toString() ?? '';
-                                  final allowedToView = (voter == currentUsername) || isAssignedToMe;
-
-                                  // Get full name from DB (fallback to username if not found)
-                                  final fullName = db.getFullNameByUsername(voter) ?? voter;
-
-                                  return Padding(
-                                    padding: const EdgeInsets.only(top: 4.0),
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text("$fullName's comments", style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
-
-                                        TextButton(
-                                          style: TextButton.styleFrom(
-                                            padding: EdgeInsets.zero,
-                                            minimumSize: const Size(0, 0),
-                                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                                          ),
-                                          onPressed: () async {
-                                            if (!allowedToView) {
-                                              // If not allowed, show an access denied message
-                                              await showDialog<void>(
-                                                context: context,
-                                                builder: (ctx) => AlertDialog(
-                                                  title: const Text('Access Denied'),
-                                                  content: const Text('You do not have permission to view this comment.'),
-                                                  actions: [
-                                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-                                                  ],
-                                                ),
-                                              );
-                                              return;
-                                            }
-
-                                            if (voter == currentUsername) {
-                                              // Split existing comment into Q1 and Q2
-                                              String q1 = '';
-                                              String q2 = '';
-                                              final parts = feedback.split(RegExp(r'Suggestions:\s*', caseSensitive: false));
-                                              if (parts.isNotEmpty) q1 = parts[0].trim();
-                                              if (parts.length > 1) q2 = parts[1].trim();
-
-                                              final q1Controller = TextEditingController(text: q1);
-                                              final q2Controller = TextEditingController(text: q2);
-
-                                              final newComment = await showDialog<String>(
-                                                context: context,
-                                                builder: (ctx) => AlertDialog(
-                                                  title: const Text('Your comment (edit)'),
-                                                  content: Column(
-                                                    mainAxisSize: MainAxisSize.min,
-                                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                                    children: [
-                                                      TextField(
-                                                        controller: q1Controller,
-                                                        maxLines: 3,
-                                                        decoration: const InputDecoration(
-                                                          labelText: 'Why do you agree/disagree with this?',
-                                                          hintText: 'Enter your reasoning...',
-                                                        ),
-                                                      ),
-                                                      const SizedBox(height: 8),
-                                                      TextField(
-                                                        controller: q2Controller,
-                                                        maxLines: 3,
-                                                        decoration: const InputDecoration(
-                                                          labelText: 'What could be done better?',
-                                                          hintText: 'Enter your suggestions...',
-                                                        ),
-                                                      ),
-                                                    ],
-                                                  ),
-                                                  actions: [
-                                                    TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancel')),
-                                                    TextButton(
-                                                      onPressed: () => Navigator.pop(
-                                                        ctx,
-                                                        '${q1Controller.text.trim()}\nSuggestions: ${q2Controller.text.trim()}',
-                                                      ),
-                                                      child: const Text('Save'),
-                                                    ),
-                                                  ],
-                                                ),
-                                              );
-
-                                              if (newComment != null) {
-                                                final currentVoteMap = (sub['votes'] is Map)
-                                                    ? Map<String, dynamic>.from(sub['votes'] as Map)
-                                                    : <String, dynamic>{};
-                                                final currentVoteValue = (currentVoteMap[currentUsername] == true);
-
-                                                db.voteOnSubtask(widget.projectName, task['id'], i, currentUsername, currentVoteValue, newComment);
-
-                                                setState(() {
-                                                  tasks = db.getTasksForProject(widget.projectName);
-                                                });
-                                              }
-                                            } else {
-                                              // Read-only split view
-                                              String q1 = '';
-                                              String q2 = '';
-                                              final parts = feedback.split(RegExp(r'Suggestions:\s*', caseSensitive: false));
-                                              if (parts.isNotEmpty) q1 = parts[0].trim();
-                                              if (parts.length > 1) q2 = parts[1].trim();
-
-                                              await showDialog<void>(
-                                                context: context,
-                                                builder: (ctx) => AlertDialog(
-                                                  title: Text("$fullName's comment"),
-                                                  content: SingleChildScrollView(
-                                                    child: Column(
-                                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                                      children: [
-                                                        const Text('Why do you agree/disagree with this?'),
-                                                        Text(q1.isNotEmpty ? q1 : 'No answer'),
-                                                        const SizedBox(height: 8),
-                                                        const Text('What could be done better?'),
-                                                        Text(q2.isNotEmpty ? q2 : 'No suggestions'),
-                                                      ],
-                                                    ),
-                                                  ),
-                                                  actions: [
-                                                    TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
-                                                  ],
-                                                ),
-                                              );
-                                            }
-
-                                          },
-                                          child: const Text('View Comment', style: TextStyle(fontSize: 12)),
-                                        ),
-                                      ],
+                const Icon(Icons.arrow_right, size: 16),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(sub['title']),
+                      if (hasSubmitted)
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            if (proof.isNotEmpty)
+                              GestureDetector(
+                                onTap: () {
+                                  showDialog(
+                                    context: context,
+                                    builder: (_) => AlertDialog(
+                                      content: Image.memory(base64Decode(proof)),
                                     ),
                                   );
-                                }).toList()),
+                                },
+                                child: Text('Tap to view image proof', style: TextStyle(decoration: TextDecoration.underline)),
+                              ),
+                            if (comment.isNotEmpty)
+                              Text('Comment: $comment', style: const TextStyle(fontSize: 12, color: Colors.grey)),
 
-                            ],
-                          ),
-                      ],
+                            // COMMENTS: only show to voter OR assignee OR any project member
+                            if (sub['comments'] != null && sub['comments'] is Map)
+                              ...((Map<String, dynamic>.from(sub['comments'] as Map)).entries.map((entry) {
+                                final voter = entry.key.toString();
+                                final feedback = entry.value?.toString() ?? '';
+                                final allowedToView = (voter == currentUsername) || isAssignedToMe || isProjectMember;
+
+                                // If not allowed, don't render the comment block at all
+                                if (!allowedToView) {
+                                  return const SizedBox.shrink();
+                                }
+
+                                // Get full name (fallback to username)
+                                final fullName = db.getFullNameByUsername(voter) ?? voter;
+
+                                return Padding(
+                                  padding: const EdgeInsets.only(top: 4.0),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text("$fullName's comments", style: const TextStyle(fontSize: 12, color: Colors.blueGrey)),
+
+                                      TextButton(
+                                        style: TextButton.styleFrom(
+                                          padding: EdgeInsets.zero,
+                                          minimumSize: const Size(0, 0),
+                                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                                        ),
+                                        onPressed: () async {
+                                          // If the voter themself -> allow edit
+                                          if (voter == currentUsername) {
+                                            // Split into the two question fields if previously saved with "Suggestions:"
+                                            String q1 = '';
+                                            String q2 = '';
+                                            final parts = feedback.split(RegExp(r'Suggestions:\s*', caseSensitive: false));
+                                            if (parts.isNotEmpty) q1 = parts[0].trim();
+                                            if (parts.length > 1) q2 = parts[1].trim();
+
+                                            final q1Controller = TextEditingController(text: q1);
+                                            final q2Controller = TextEditingController(text: q2);
+
+                                            final newComment = await showDialog<String>(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title: const Text('Your comment (edit)'),
+                                                content: Column(
+                                                  mainAxisSize: MainAxisSize.min,
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    TextField(
+                                                      controller: q1Controller,
+                                                      maxLines: 3,
+                                                      decoration: const InputDecoration(
+                                                        labelText: 'Why do you agree/disagree with this?',
+                                                        hintText: 'Enter your reasoning...',
+                                                      ),
+                                                    ),
+                                                    const SizedBox(height: 8),
+                                                    TextField(
+                                                      controller: q2Controller,
+                                                      maxLines: 3,
+                                                      decoration: const InputDecoration(
+                                                        labelText: 'What could be done better?',
+                                                        hintText: 'Enter your suggestions...',
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                                actions: [
+                                                  TextButton(onPressed: () => Navigator.pop(ctx, null), child: const Text('Cancel')),
+                                                  TextButton(
+                                                    onPressed: () => Navigator.pop(
+                                                      ctx,
+                                                      '${q1Controller.text.trim()}\nSuggestions: ${q2Controller.text.trim()}',
+                                                    ),
+                                                    child: const Text('Save'),
+                                                  ),
+                                                ],
+                                              ),
+                                            );
+
+                                            if (newComment != null) {
+                                              final currentVoteMap = (sub['votes'] is Map)
+                                                  ? Map<String, dynamic>.from(sub['votes'] as Map)
+                                                  : <String, dynamic>{};
+                                              final currentVoteValue = (currentVoteMap[currentUsername] == true);
+
+                                              db.voteOnSubtask(widget.projectName, task['id'], i, currentUsername, currentVoteValue, newComment);
+
+                                              setState(() {
+                                                tasks = db.getTasksForProject(widget.projectName);
+                                              });
+                                            }
+                                          } else {
+                                            // read-only view for assignee or other project members
+                                            String q1 = '';
+                                            String q2 = '';
+                                            final parts = feedback.split(RegExp(r'Suggestions:\s*', caseSensitive: false));
+                                            if (parts.isNotEmpty) q1 = parts[0].trim();
+                                            if (parts.length > 1) q2 = parts[1].trim();
+
+                                            await showDialog<void>(
+                                              context: context,
+                                              builder: (ctx) => AlertDialog(
+                                                title: Text("$fullName's comment"),
+                                                content: SingleChildScrollView(
+                                                  child: Column(
+                                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                                    children: [
+                                                      const Text('Why do you agree/disagree with this?'),
+                                                      Text(q1.isNotEmpty ? q1 : 'No answer'),
+                                                      const SizedBox(height: 8),
+                                                      const Text('What could be done better?'),
+                                                      Text(q2.isNotEmpty ? q2 : 'No suggestions'),
+                                                    ],
+                                                  ),
+                                                ),
+                                                actions: [
+                                                  TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Close')),
+                                                ],
+                                              ),
+                                            );
+                                          }
+                                        },
+                                        child: const Text('View Comment', style: TextStyle(fontSize: 12)),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList()),
+                          ],
+                        ),
+                    ],
+                  ),
+                ),
+
+                // NEW: only allow voting if the current user is a project member (and not the assignee)
+                if (canVote)
+                  Row(
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.thumb_up, color: Colors.green),
+                        onPressed: () => showVoteCommentDialog(task, i, true),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.thumb_down, color: Colors.red),
+                        onPressed: () => showVoteCommentDialog(task, i, false),
+                      ),
+                    ],
+                  )
+                else if (isAssignedToMe && (status == 'Pending' || status == 'Rejected'))
+                  ElevatedButton(
+                    onPressed: () => showSubmitDialog(task, i),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.blueText,
+                      foregroundColor: Colors.white,
+                    ),
+                    child: const Text('Confirm Finish'),
+                  )
+                else
+                  Text(
+                    status == 'under_review' ? 'Under review. Please wait.' : status,
+                    style: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      color: status == 'Approved'
+                          ? Colors.green
+                          : status == 'Rejected'
+                              ? Colors.red
+                              : Colors.orange,
                     ),
                   ),
-                  if (isAssignedToMe && (status == 'Pending' || status == 'Rejected'))
-                    ElevatedButton(
-                      onPressed: () => showSubmitDialog(task, i),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: AppColors.blueText,
-                        foregroundColor: Colors.white,
-                      ),
-                      child: const Text('Confirm Finish'),
-                    )
-                  else if (!isAssignedToMe && status == 'under_review' && !alreadyVoted)
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.thumb_up, color: Colors.green),
-                          onPressed: () => showVoteCommentDialog(task, i, true),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.thumb_down, color: Colors.red),
-                          onPressed: () => showVoteCommentDialog(task, i, false),
-                        ),
-                      ],
-                    )
-                  else
-                    Text(
-                      status == 'under_review'
-                          ? 'Under review. Please wait.'
-                          : status,
-                      style: TextStyle(
-                        fontStyle: FontStyle.italic,
-                        color: status == 'Approved'
-                            ? Colors.green
-                            : status == 'Rejected'
-                                ? Colors.red
-                                : Colors.orange,
-                      ),
-                    ),
-                ],
-              );
-            }),
-            if (canEdit)
-              Align(
-                alignment: Alignment.centerRight,
-                child: TextButton.icon(
-                  onPressed: () async {
-                    await showEditSubtasksDialog(task);
-                    setState(() {
-                      tasks = db.getTasksForProject(widget.projectName);
-                    });
-                  },
-                  icon: const Icon(Icons.edit),
-                  label: const Text("Edit Subtasks"),
-                ),
+              ],
+            );
+          }),
+          if (canEdit)
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton.icon(
+                onPressed: () async {
+                  await showEditSubtasksDialog(task);
+                  setState(() {
+                    tasks = db.getTasksForProject(widget.projectName);
+                  });
+                },
+                icon: const Icon(Icons.edit),
+                label: const Text("Edit Subtasks"),
               ),
-          ],
-        ),
+            ),
+        ],
       ),
-    );
-  }
+    ),
+  );
+}
+
 
   Future<bool> showEditSubtasksDialog(Map<String, dynamic> task) async {
     final newSubtaskController = TextEditingController();

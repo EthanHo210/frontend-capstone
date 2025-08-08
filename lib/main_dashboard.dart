@@ -514,37 +514,6 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                       color: AppColors.blueText,
                     ),
                   ),
-                  if (_userRole != 'user')
-                    IconButton(
-                      icon: const Icon(Icons.edit, color: AppColors.blueText),
-                      tooltip: 'Edit Project Info',
-                      onPressed: () async {
-                        if (_projectInfo == null || _projectInfo!["project"] == "No project") {
-                          showDialog(
-                            context: context,
-                            builder: (BuildContext context) {
-                              return AlertDialog(
-                                title: const Text("No Projects"),
-                                content: const Text("There are no projects available for edit."),
-                                actions: [
-                                  TextButton(
-                                    child: const Text("OK"),
-                                    onPressed: () {
-                                      Navigator.of(context).pop();
-                                    },
-                                  ),
-                                ],
-                              );
-                            },
-                          );
-                        } else {
-                          final result = await Navigator.pushNamed(context, '/edit_project', arguments: _projectInfo);
-                          if (result == true) {
-                            _loadUserRoleAndProject();
-                          }
-                        }
-                      },
-                    ),
                 ],
               ),
             ),

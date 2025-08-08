@@ -250,7 +250,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             MultiSelectDialogField(
               items: allStudents
                   .map((student) =>
-                      MultiSelectItem(student['username'], student['username'].toString().capitalize()))
+                      MultiSelectItem(student['username'], student['fullName'] ?? student['username'].toString().capitalize()))
                   .toList(),
               initialValue: _selectedMembers,
               title: const Text("Select Members"),

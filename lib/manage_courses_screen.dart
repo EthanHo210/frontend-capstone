@@ -3,6 +3,16 @@ import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
 import 'app_colors.dart';
 
+
+extension StringExtension on String {
+  String toTitleCase() {
+    if (isEmpty) return this;
+    return split(' ').map((word) {
+      if (word.isEmpty) return word;
+      return word[0].toUpperCase() + word.substring(1).toLowerCase();
+    }).join(' ');
+  }
+}
 class ManageCoursesScreen extends StatefulWidget {
   const ManageCoursesScreen({super.key});
 
@@ -19,9 +29,9 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
   String _searchQuery = '';
 
   void _addCourse() {
-    final prefix = _prefixController.text.trim();
+    final prefix = _prefixController.text.trim().toUpperCase();
     final id = _idController.text.trim();
-    final name = _nameController.text.trim();
+    final name = _nameController.text.trim().toTitleCase();
 
     if (prefix.isEmpty || id.isEmpty || name.isEmpty) {
       _showError('Please fill in all fields.');
@@ -105,7 +115,7 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
           ),
           ElevatedButton(
             onPressed: () {
-              final newFullName = '${newPrefix.text.trim()}${newId.text.trim()} - ${newName.text.trim()}';
+              final newFullName = '${newPrefix.text.trim().toUpperCase()}${newId.text.trim()} - ${newName.text.trim().toTitleCase()}';
               if (newPrefix.text.isEmpty || newId.text.isEmpty || newName.text.isEmpty) {
                 _showError('All fields must be filled.');
                 return;
