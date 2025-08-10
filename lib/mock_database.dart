@@ -575,17 +575,69 @@ final Map<String, String> _projectLeaders = {};
     _courses.remove(courseName.trim());
   }
 
-  void deleteCourse(String courseName) {
-    _courses.remove(courseName);
-    for (var project in _projects) {
-      if (project['course'] == courseName) project['course'] = 'N/A';
+  // Add this helper to completely remove a project and its related data
+void deleteProject(String projectName) {
+  // find project
+  final index = _projects.indexWhere((p) => p['name'] == projectName);
+  if (index == -1) return;
+
+  final project = _projects[index];
+  // Remove tasks for that project
+  _projectTasks.remove(projectName);
+
+  // Remove leader entry
+  _projectLeaders.remove(projectName);
+
+  // Update userProject entries for project members (set to N/A if they pointed to this project)
+  final members = List<String>.from(project['members'] ?? []);
+  for (final member in members) {
+    if (_userProjects.containsKey(member) && _userProjects[member]?['project'] == projectName) {
+      _userProjects[member] = {
+        'project': 'N/A',
+        'contribution': '0%',
+        'rank': 'Unranked',
+        'course': 'N/A',
+        'deadline': '',
+      };
     }
-    for (var key in _userProjects.keys) {
+  }
+
+  // Remove the project from the master list
+  _projects.removeAt(index);
+}
+
+// Replace your current deleteCourse with this implementation:
+  void deleteCourse(String courseName) {
+    // Remove from courses list first
+    _courses.remove(courseName);
+
+    // Find project names that belong to this course
+    final projectsToDelete = _projects
+        .where((p) => p['course'] == courseName)
+        .map((p) => p['name']?.toString() ?? '')
+        .where((name) => name.isNotEmpty)
+        .toList();
+
+    // Delete each project fully (tasks, leader, user project info)
+    for (final projectName in projectsToDelete) {
+      deleteProject(projectName);
+    }
+
+    // Also clear any userProject entries that referenced this course (defensive)
+    for (final key in _userProjects.keys.toList()) {
       if (_userProjects[key]?['course'] == courseName) {
         _userProjects[key]!['course'] = 'N/A';
+        if (_userProjects[key]?['project'] == null || _userProjects[key]!['project'] == courseName) {
+          // if the user's project referenced a deleted project, set to N/A
+          _userProjects[key]!['project'] = 'N/A';
+          _userProjects[key]!['contribution'] = '0%';
+          _userProjects[key]!['rank'] = 'Unranked';
+          _userProjects[key]!['deadline'] = '';
+        }
       }
     }
   }
+
 
   void renameCourse(String oldName, String newName) {
     if (_courses.contains(oldName) && !_courses.contains(newName)) {

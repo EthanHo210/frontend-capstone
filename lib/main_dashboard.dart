@@ -311,13 +311,21 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
     final role = db.getUserRole(user);
     final username = db.getUsernameByEmail(user) ?? user;
 
+    final existingCourses = db.getCourses().toSet();
+
     final projects = db.getAllProjects().where((project) {
+      // skip projects whose course no longer exists
+      final projectCourse = project['course']?.toString() ?? '';
+      if (!existingCourses.contains(projectCourse)) return false;
+
       if (role == 'admin' || role == 'officer') return true; // Admins & Officers see everything
+
       final members = project['members'] is List
           ? List<String>.from(project['members'])
           : (project['members'] as String).split(',').map((e) => e.trim()).toList();
       return members.contains(username);
     }).toList();
+
 
     if (projects.isEmpty) {
       return [

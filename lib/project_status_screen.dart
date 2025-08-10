@@ -85,8 +85,18 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
               final subtasks = task['subtasks'] as List<dynamic>;
               final sub = subtasks[subtaskIndex];
               final votes = Map<String, bool>.from(sub['votes'] ?? {});
-              final allOthersVoted = projectMembers.where((m) => m != task['assignedTo']).every((m) => votes.containsKey(m));
-              if (allOthersVoted) db.finalizeVotes(widget.projectName, task['id'], subtaskIndex);
+
+// compute eligible voters: project members excluding assignee and excluding admin/officer roles
+              final eligibleVoters = projectMembers.where((m) {
+                if (m == task['assignedTo']) return false;
+                final r = db.getUserRole(m);
+                return !(r == 'admin' || r == 'officer');
+              }).toList();
+
+              final allEligibleVoted = eligibleVoters.isEmpty ? true : eligibleVoters.every((m) => votes.containsKey(m));
+              if (allEligibleVoted) db.finalizeVotes(widget.projectName, task['id'], subtaskIndex);
+
+              
               setState(() {
                 tasks = db.getTasksForProject(widget.projectName);
               });
@@ -198,6 +208,11 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
   // NEW: check membership once per card
   final isProjectMember = projectMembers.contains(currentUsername);
 
+  final bool currentIsAdminOrOfficer = role == 'admin' || role == 'officer';
+
+  // only allow real project members who are NOT admin/officer to vote
+  
+
   return Card(
     margin: const EdgeInsets.symmetric(vertical: 8),
     child: Padding(
@@ -230,7 +245,13 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
             final hasSubmitted = proof.isNotEmpty || comment.isNotEmpty;
 
             // NEW: only members can vote/comment view (unless it's the voter or the assignee)
-            final canVote = !isAssignedToMe && status == 'under_review' && !alreadyVoted && isProjectMember;
+            // only members who are NOT admin/officer can vote (and not the assignee)
+            final canVote = !isAssignedToMe
+                && status == 'under_review'
+                && !alreadyVoted
+                && isProjectMember
+                && !currentIsAdminOrOfficer;
+
 
             return Row(
               children: [
@@ -264,7 +285,10 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                               ...((Map<String, dynamic>.from(sub['comments'] as Map)).entries.map((entry) {
                                 final voter = entry.key.toString();
                                 final feedback = entry.value?.toString() ?? '';
-                                final allowedToView = (voter == currentUsername) || isAssignedToMe || isProjectMember;
+                                final allowedToView = (voter == currentUsername) 
+                                  || isAssignedToMe 
+                                  || (projectMembers.contains(currentUsername) && !currentIsAdminOrOfficer);
+
 
                                 // If not allowed, don't render the comment block at all
                                 if (!allowedToView) {
