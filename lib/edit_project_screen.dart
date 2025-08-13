@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:multi_select_flutter/multi_select_flutter.dart';
 import 'mock_database.dart';
-import 'app_colors.dart';
 
 class EditProjectScreen extends StatefulWidget {
   final Map<String, dynamic> project;
@@ -30,7 +29,6 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     if (role != 'teacher' && role != 'admin' && role != 'officer') {
       Future.microtask(() => _showUnauthorized());
     }
-
 
     _nameController = TextEditingController(text: widget.project['name']?.toString() ?? '');
     _selectedCourse = widget.project['course']?.toString();
@@ -105,9 +103,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
-          children: const [
-            Icon(Icons.warning, color: Colors.amber),
-            SizedBox(width: 8),
+          children: [
+            Icon(Icons.warning, color: Theme.of(context).colorScheme.tertiary),
+            const SizedBox(width: 8),
             Text('Confirm Changes'),
           ],
         ),
@@ -119,7 +117,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
           ),
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(backgroundColor: AppColors.blueText),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+            ),
             child: const Text('Confirm', style: TextStyle(color: Colors.white)),
           ),
         ],
@@ -131,7 +131,6 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     }
   }
 
-
   void _performSave() {
     final index = db.getAllProjects().indexWhere((p) => p['name'] == widget.project['name']);
     if (index != -1) {
@@ -139,7 +138,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
         'name': _nameController.text,
         'course': _selectedCourse,
         'members': _selectedMembers,
-        'startDate': widget.project['startDate'], // keep unchanged
+        'startDate': widget.project['startDate'],
         'deadline': _deadline.toIso8601String(),
         'status': db.calculateStatus(_deadline.toIso8601String(), 0),
       };
@@ -192,18 +191,20 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const BackButton(color: AppColors.blueText),
+        leading: BackButton(color: scheme.primary),
         title: Text(
           'Edit Project',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             fontSize: 22,
-            color: AppColors.blueText,
+            color: scheme.primary,
           ),
         ),
       ),
@@ -216,7 +217,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
               decoration: InputDecoration(
                 hintText: 'Group Name',
                 filled: true,
-                fillColor: Colors.blue[50],
+                fillColor: scheme.surfaceVariant,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -227,43 +228,50 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             DropdownButtonFormField<String>(
               value: availableCourses.contains(_selectedCourse) ? _selectedCourse : null,
               items: availableCourses
-                  .map((course) => DropdownMenuItem(value: course, child: Text(course)))
+                  .map((course) => DropdownMenuItem(
+                        value: course,
+                        child: Text(course, style: TextStyle(color: scheme.onSurface)),
+                      ))
                   .toList(),
               onChanged: (value) => setState(() => _selectedCourse = value),
               decoration: InputDecoration(
                 hintText: 'Select Course',
                 filled: true,
-                fillColor: Colors.blue[50],
+                fillColor: scheme.surfaceVariant,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
               ),
             ),
-
             const SizedBox(height: 16),
             Text(
               'Add Members to this Project:',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
+                color: scheme.primary,
+              ),
             ),
             const SizedBox(height: 8),
             MultiSelectDialogField(
               items: allStudents
-                  .map((student) =>
-                      MultiSelectItem(student['username'], student['fullName'] ?? student['username'].toString().capitalize()))
+                  .map((student) => MultiSelectItem(
+                      student['username'],
+                      student['fullName'] ??
+                          student['username'].toString().capitalize()))
                   .toList(),
               initialValue: _selectedMembers,
               title: const Text("Select Members"),
-              selectedColor: AppColors.blueText,
+              selectedColor: scheme.primary,
               decoration: BoxDecoration(
-                color: Colors.blue[50],
+                color: scheme.surfaceVariant,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.transparent),
               ),
-              buttonIcon: const Icon(Icons.person_add, color: AppColors.blueText),
+              buttonIcon: Icon(Icons.person_add, color: scheme.primary),
               buttonText: Text(
                 "Select members to add",
-                style: GoogleFonts.poppins(color: AppColors.blueText),
+                style: GoogleFonts.poppins(color: scheme.primary),
               ),
               onConfirm: (values) {
                 setState(() {
@@ -282,16 +290,19 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                const Icon(Icons.calendar_today, color: AppColors.blueText),
+                Icon(Icons.calendar_today, color: scheme.primary),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     'Deadline: ${_deadline.toLocal().toString().substring(0, 16)}',
-                    style: GoogleFonts.poppins(fontSize: 16),
+                    style: GoogleFonts.poppins(
+                      fontSize: 16,
+                      color: scheme.onSurface,
+                    ),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.date_range, color: AppColors.blueText),
+                  icon: Icon(Icons.date_range, color: scheme.primary),
                   onPressed: _pickDateTime,
                 ),
               ],
@@ -300,8 +311,8 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
             ElevatedButton(
               onPressed: _confirmSave,
               style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.blueText,
-                foregroundColor: Colors.white,
+                backgroundColor: scheme.primary,
+                foregroundColor: scheme.onPrimary,
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
               child: Text(

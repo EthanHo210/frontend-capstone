@@ -24,11 +24,12 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
     Navigator.pushNamed(context, '/courseTeams');
   }
 
-  @override
+ @override
   Widget build(BuildContext context) {
     final db = MockDatabase();
     final role = db.getUserRole(db.currentLoggedInUser ?? '');
     final isAdmin = role == 'admin';
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -36,7 +37,8 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.blueText),
+          icon: Icon(Icons.arrow_back,
+              color: isDarkMode ? Colors.white : AppColors.blueText),
           onPressed: () {
             Navigator.pop(context);
           },
@@ -49,7 +51,7 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 16,
-                  color: AppColors.blueText,
+                  color: isDarkMode ? Colors.white : AppColors.blueText,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -66,7 +68,7 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
                       style: GoogleFonts.poppins(
                         fontSize: 24,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.blueText,
+                        color: isDarkMode ? Colors.white : AppColors.blueText,
                       ),
                     ),
                     const SizedBox(height: 20),
@@ -74,7 +76,7 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
                       'Before starting your project, please arrange the project responsibilities.',
                       style: GoogleFonts.poppins(
                         fontSize: 16,
-                        color: AppColors.blueText,
+                        color: isDarkMode ? Colors.white70 : AppColors.blueText,
                       ),
                     ),
                     const SizedBox(height: 30),
@@ -83,7 +85,7 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
                       style: GoogleFonts.poppins(
                         fontSize: 16,
                         fontWeight: FontWeight.w600,
-                        color: AppColors.blueText,
+                        color: isDarkMode ? Colors.white : AppColors.blueText,
                       ),
                     ),
                     const SizedBox(height: 10),
@@ -95,11 +97,15 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
                               key,
                               style: GoogleFonts.poppins(
                                 fontSize: 18,
-                                color: AppColors.blueText,
+                                color:
+                                    isDarkMode ? Colors.white : AppColors.blueText,
                               ),
                             ),
                             value: _responsibilities[key],
-                            activeColor: AppColors.blueText,
+                            activeColor:
+                                isDarkMode ? Colors.white : AppColors.blueText,
+                            checkColor:
+                                isDarkMode ? Colors.black : Colors.white,
                             onChanged: (value) {
                               setState(() {
                                 _responsibilities[key] = value ?? false;
@@ -118,10 +124,12 @@ class _ProjectPlanningScreenState extends State<ProjectPlanningScreen> {
           ? null
           : FloatingActionButton(
               onPressed: _goNext,
-              backgroundColor: Colors.black,
-              child: const Icon(Icons.arrow_forward, color: Colors.white),
+              backgroundColor: isDarkMode ? Colors.white : Colors.black,
+              child: Icon(Icons.arrow_forward,
+                  color: isDarkMode ? Colors.black : Colors.white),
             ),
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }
+
 }

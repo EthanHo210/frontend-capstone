@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
-import 'app_colors.dart';
 
 class AssignLeaderScreen extends StatefulWidget {
   final String projectName;
@@ -33,6 +32,8 @@ class _AssignLeaderScreenState extends State<AssignLeaderScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -40,13 +41,12 @@ class _AssignLeaderScreenState extends State<AssignLeaderScreen> {
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             fontSize: 22,
-            color: AppColors.blueText,
+            color: colorScheme.primary,
           ),
         ),
-
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: IconThemeData(color: colorScheme.onBackground),
       ),
       body: ListView.builder(
         padding: const EdgeInsets.all(16),
@@ -57,31 +57,42 @@ class _AssignLeaderScreenState extends State<AssignLeaderScreen> {
           final isSelected = username == selectedLeader;
 
           return ListTile(
-            title: Text(fullName),
-            trailing: isSelected ? const Icon(Icons.check_circle, color: Colors.green) : null,
+            title: Text(fullName, style: TextStyle(color: colorScheme.onBackground)),
+            trailing: isSelected
+                ? Icon(Icons.check_circle, color: colorScheme.secondary)
+                : null,
             onTap: () {
               showDialog(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text("Confirm Leader Assignment"),
-                  content: Text("Are you sure you want to assign $fullName as the group leader?"),
+                  title: Text(
+                    "Confirm Leader Assignment",
+                    style: TextStyle(color: colorScheme.onSurface),
+                  ),
+                  content: Text(
+                    "Are you sure you want to assign $fullName as the group leader?",
+                    style: TextStyle(color: colorScheme.onSurfaceVariant),
+                  ),
+                  backgroundColor: colorScheme.surface,
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
-                      child: const Text("Cancel"),
+                      child: Text("Cancel", style: TextStyle(color: colorScheme.primary)),
                     ),
                     ElevatedButton(
                       onPressed: () {
                         assignLeader(username);
                         Navigator.pop(context); // Close dialog
                       },
-                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.blueText),
-                      child: const Text("Confirm", style: TextStyle(color: Colors.white)),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: colorScheme.primary,
+                        foregroundColor: colorScheme.onPrimary,
+                      ),
+                      child: const Text("Confirm"),
                     ),
                   ],
                 ),
               );
-
             },
           );
         },

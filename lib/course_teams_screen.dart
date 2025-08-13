@@ -4,7 +4,6 @@ import 'package:intl/intl.dart';
 import 'mock_database.dart';
 import 'project_status_screen.dart';
 import 'edit_project_screen.dart';
-import 'app_colors.dart';
 import 'main.dart';
 
 class CourseTeamsScreen extends StatefulWidget {
@@ -55,7 +54,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
   void _loadProjects() {
     final allProjects = db.getAllProjects();
     final role = db.getUserRole(currentUser);
-    
+
     projects = allProjects.where((project) {
       final course = project['course'] ?? 'N/A';
       if (course != widget.selectedCourse) return false;
@@ -78,7 +77,6 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
     }).toList();
   }
 
-
   Color getStatusColor(String status) {
     switch (status) {
       case 'On-track':
@@ -98,18 +96,21 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
 
   @override
   Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final iconColor = Theme.of(context).iconTheme.color;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const BackButton(color: AppColors.blueText),
+        leading: BackButton(color: iconColor),
         title: Text(
           'Project List',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             fontSize: 22,
-            color: AppColors.blueText,
+            color: textTheme.titleLarge?.color,
           ),
         ),
       ),
@@ -122,7 +123,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
                   textAlign: TextAlign.center,
                   style: GoogleFonts.poppins(
                     fontSize: 18,
-                    color: AppColors.blueText,
+                    color: textTheme.bodyLarge?.color,
                     fontWeight: FontWeight.w500,
                   ),
                 ),
@@ -139,11 +140,13 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
                   final rawDeadline = project['deadline'];
 
                   final startDateFormatted = rawStartDate != null
-                      ? DateFormat('yyyy-MM-dd - HH:mm:ss').format(DateTime.parse(rawStartDate))
+                      ? DateFormat('yyyy-MM-dd - HH:mm:ss')
+                          .format(DateTime.parse(rawStartDate))
                       : 'N/A';
 
                   final deadlineFormatted = rawDeadline != null
-                      ? DateFormat('yyyy-MM-dd - HH:mm:ss').format(DateTime.parse(rawDeadline))
+                      ? DateFormat('yyyy-MM-dd - HH:mm:ss')
+                          .format(DateTime.parse(rawDeadline))
                       : 'N/A';
 
                   final rawMembers = project['members'];
@@ -158,7 +161,9 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
                   final studentNames = memberIds
                       .map((id) {
                         final user = db.getFullNameByUsername(id);
-                        return user != null ? user[0].toUpperCase() + user.substring(1) : 'Unknown';
+                        return user != null
+                            ? user[0].toUpperCase() + user.substring(1)
+                            : 'Unknown';
                       })
                       .toList();
 
@@ -177,7 +182,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
                     },
                     child: Card(
                       margin: const EdgeInsets.symmetric(vertical: 8),
-                      color: Colors.purple[50],
+                      color: Theme.of(context).cardColor,
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
@@ -193,27 +198,24 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
                                   style: GoogleFonts.poppins(
                                     fontWeight: FontWeight.bold,
                                     fontSize: 16,
+                                    color: textTheme.bodyLarge?.color,
                                   ),
                                 ),
-
-                                /*const SizedBox(height: 4),
-                                  Text(
-                                    'ID: ${project['id'] ?? 'N/A'}',
-                                    style: GoogleFonts.poppins(fontSize: 12, color: Colors.grey),
-                                  ),*/
-
                                 const SizedBox(height: 4),
                                 Text(
                                   'Course: $course',
                                   style: GoogleFonts.poppins(
                                     fontSize: 14,
-                                    color: AppColors.blueText,
+                                    color: textTheme.bodyMedium?.color,
                                   ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
                                   'Start Date: $startDateFormatted\nDeadline: $deadlineFormatted',
-                                  style: GoogleFonts.poppins(fontSize: 12),
+                                  style: GoogleFonts.poppins(
+                                    fontSize: 12,
+                                    color: textTheme.bodySmall?.color,
+                                  ),
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
@@ -227,36 +229,47 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
                                 const SizedBox(height: 6),
                                 if (studentNames.isNotEmpty)
                                   Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Students:',
                                         style: GoogleFonts.poppins(
                                           fontWeight: FontWeight.w600,
                                           fontSize: 13,
+                                          color: textTheme.bodyMedium?.color,
                                         ),
                                       ),
-                                      ...studentNames.map((name) => Text(
-                                            '- $name',
-                                            style: GoogleFonts.poppins(fontSize: 12),
-                                          )),
+                                      ...studentNames.map(
+                                        (name) => Text(
+                                          '- $name',
+                                          style: GoogleFonts.poppins(
+                                            fontSize: 12,
+                                            color: textTheme.bodySmall?.color,
+                                          ),
+                                        ),
+                                      ),
                                     ],
                                   ),
                               ],
                             ),
                           ),
-                          if (isTeacher || db.getUserRole(currentUser) == 'admin' || db.getUserRole(currentUser) == 'officer')
+                          if (isTeacher ||
+                              db.getUserRole(currentUser) == 'admin' ||
+                              db.getUserRole(currentUser) == 'officer')
                             Positioned(
                               top: 0,
                               right: 0,
                               child: IconButton(
-                                icon: const Icon(Icons.edit, color: AppColors.blueText),
+                                icon: Icon(Icons.edit, color: iconColor),
                                 tooltip: 'Edit Project',
                                 onPressed: () async {
                                   final updatedProject = await Navigator.push(
                                     context,
                                     MaterialPageRoute(
-                                      builder: (_) => EditProjectScreen(project: Map<String, dynamic>.from(project)),
+                                      builder: (_) => EditProjectScreen(
+                                          project: Map<String, dynamic>.from(
+                                              project)),
                                     ),
                                   );
                                   if (updatedProject != null) {

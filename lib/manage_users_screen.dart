@@ -236,14 +236,18 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDarkMode ? Colors.white : AppColors.blueText;
+    final searchFillColor = isDarkMode ? Colors.grey[800] : Colors.white;
+
     final allUsers = _db.getAllUsers();
     final filteredUsers = allUsers.where((user) {
       final username = user['username'].toLowerCase();
       final email = user['email'].toLowerCase();
       final fullName = (user['fullName'] ?? '').toLowerCase();
       return username.contains(searchQuery.toLowerCase()) ||
-             email.contains(searchQuery.toLowerCase()) ||
-             fullName.contains(searchQuery.toLowerCase());
+            email.contains(searchQuery.toLowerCase()) ||
+            fullName.contains(searchQuery.toLowerCase());
     }).toList();
 
     final Map<String, List<Map<String, dynamic>>> grouped = {
@@ -257,7 +261,8 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       grouped[role]?.add(user);
     }
     for (var role in grouped.keys) {
-      grouped[role]!.sort((a, b) => (a['fullName'] ?? a['username']).compareTo(b['fullName'] ?? b['username']));
+      grouped[role]!.sort((a, b) => (a['fullName'] ?? a['username'])
+          .compareTo(b['fullName'] ?? b['username']));
     }
 
     final roleOrder = ['admin', 'officer', 'teacher', 'user'];
@@ -271,20 +276,31 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
-        title: Text('Manage Users', style: GoogleFonts.poppins(color: AppColors.blueText, fontWeight: FontWeight.bold)),
+        title: Text(
+          'Manage Users',
+          style: GoogleFonts.poppins(
+            color: textColor,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.blueText),
+        iconTheme: IconThemeData(color: textColor),
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Padding(
             padding: const EdgeInsets.all(12.0),
             child: TextField(
+              style: TextStyle(color: isDarkMode ? Colors.white : Colors.black),
               decoration: InputDecoration(
                 hintText: 'Search users...',
+                hintStyle: TextStyle(
+                  color: isDarkMode ? Colors.white70 : Colors.black54,
+                ),
                 filled: true,
-                fillColor: Colors.white,
-                prefixIcon: const Icon(Icons.search),
+                fillColor: searchFillColor,
+                prefixIcon: Icon(Icons.search,
+                    color: isDarkMode ? Colors.white70 : Colors.black54),
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
@@ -306,23 +322,43 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 roleLabels[role]!,
-                style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 18, color: AppColors.blueText),
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: textColor,
+                ),
               ),
             ),
             ...usersInGroup.map((user) => Card(
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  color: Theme.of(context).cardColor,
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
                   child: ListTile(
-                    title: Text(user['fullName'] ?? user['username'], style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+                    title: Text(
+                      user['fullName'] ?? user['username'],
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        color: textColor,
+                      ),
+                    ),
                     subtitle: Text(
                       'Username: ${user['username']}\n${user['email']}',
-                      style: GoogleFonts.poppins(),
+                      style: GoogleFonts.poppins(
+                        color: isDarkMode ? Colors.white70 : Colors.black87,
+                      ),
                     ),
                     isThreeLine: true,
                     trailing: Wrap(
                       spacing: 8,
                       children: [
-                        IconButton(icon: const Icon(Icons.edit, color: Colors.blue), onPressed: () => _editUser(user)),
-                        IconButton(icon: const Icon(Icons.delete, color: Colors.red), onPressed: () => _deleteUser(user['username'])),
+                        IconButton(
+                          icon: Icon(Icons.edit, color: Colors.blue),
+                          onPressed: () => _editUser(user),
+                        ),
+                        IconButton(
+                          icon: Icon(Icons.delete, color: Colors.red),
+                          onPressed: () => _deleteUser(user['username']),
+                        ),
                       ],
                     ),
                   ),
@@ -338,4 +374,5 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
       ),
     );
   }
+
 }

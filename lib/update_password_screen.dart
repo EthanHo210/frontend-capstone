@@ -3,7 +3,6 @@ import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
 import 'app_colors.dart';
 
-
 class UpdatePasswordScreen extends StatefulWidget {
   const UpdatePasswordScreen({super.key});
 
@@ -35,7 +34,7 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
   void _showSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message, style: GoogleFonts.poppins()),
+        content: Text(message, style: GoogleFonts.poppins(color: Colors.white)),
         backgroundColor: AppColors.blueText,
         behavior: SnackBarBehavior.floating,
         duration: const Duration(seconds: 2),
@@ -45,6 +44,11 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryText = Theme.of(context).textTheme.bodyLarge?.color ?? (isDark ? Colors.white : Colors.black);
+    final secondaryText = Theme.of(context).textTheme.bodyMedium?.color ?? (isDark ? Colors.white70 : Colors.grey[700]!);
+    final inputFill = isDark ? Colors.grey[800] : Colors.blue[50];
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
@@ -52,12 +56,12 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
           'Update Password',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: AppColors.blueText,
+            color: primaryText,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: AppColors.blueText),
+        iconTheme: IconThemeData(color: primaryText),
       ),
       body: Center(
         child: Padding(
@@ -68,12 +72,12 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
               TextField(
                 controller: _newPasswordController,
                 obscureText: true,
-                style: GoogleFonts.poppins(),
+                style: GoogleFonts.poppins(color: primaryText),
                 decoration: InputDecoration(
                   hintText: 'Enter new password',
-                  hintStyle: GoogleFonts.poppins(),
+                  hintStyle: GoogleFonts.poppins(color: secondaryText.withOpacity(0.85)),
                   filled: true,
-                  fillColor: Colors.blue[50],
+                  fillColor: inputFill,
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -84,7 +88,8 @@ class _UpdatePasswordScreenState extends State<UpdatePasswordScreen> {
               ElevatedButton(
                 onPressed: _updatePassword,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.blueText,
+                  backgroundColor: AppColors.blueText, // brand-locked blue
+                  foregroundColor: Colors.white, // white text on the blue button
                   padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 12),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),

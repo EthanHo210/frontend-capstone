@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
-import 'app_colors.dart';
 
 class AssignTaskScreen extends StatefulWidget {
   final String projectName;
@@ -57,21 +56,25 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     });
   }
 
-  InputDecoration _buildInputDecoration(String label) {
+  InputDecoration _buildInputDecoration(String label, BuildContext context) {
+    final theme = Theme.of(context);
     return InputDecoration(
       labelText: label,
+      labelStyle: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide.none,
       ),
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       filled: true,
-      fillColor: Colors.blue[50],
+      fillColor: theme.colorScheme.surfaceVariant,
     );
   }
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Scaffold(
       appBar: AppBar(
         title: Text(
@@ -79,12 +82,12 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             fontSize: 22,
-            color: AppColors.blueText,
+            color: theme.colorScheme.primary,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: const IconThemeData(color: Colors.black),
+        iconTheme: IconThemeData(color: theme.colorScheme.onSurface),
       ),
       body: Padding(
         padding: const EdgeInsets.all(20),
@@ -93,36 +96,42 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
           child: ListView(
             children: [
               TextFormField(
-                decoration: _buildInputDecoration('Task Title'),
-                style: GoogleFonts.poppins(),
+                decoration: _buildInputDecoration('Task Title', context),
+                style: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
                 validator: (value) => value == null || value.isEmpty ? 'Enter task title' : null,
                 onSaved: (value) => _taskTitle = value,
               ),
               const SizedBox(height: 20),
               DropdownButtonFormField<String>(
-                decoration: _buildInputDecoration('Assign to'),
+                decoration: _buildInputDecoration('Assign to', context),
                 value: _assignedTo,
                 items: members.map((username) {
                   final name = db.getUserByUsername(username)?['fullName'] ?? username;
                   return DropdownMenuItem(
                     value: username,
-                    child: Text(name, style: GoogleFonts.poppins()),
+                    child: Text(name, style: GoogleFonts.poppins(color: theme.colorScheme.onSurface)),
                   );
                 }).toList(),
                 validator: (value) => value == null ? 'Select a member' : null,
                 onChanged: (value) => setState(() => _assignedTo = value),
-                style: GoogleFonts.poppins(color: Colors.black),
-                dropdownColor: Colors.white,
+                style: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
+                dropdownColor: theme.colorScheme.surface,
               ),
               const SizedBox(height: 30),
-              Text('Add Subtasks:', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+              Text(
+                'Add Subtasks:',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.bold,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
               const SizedBox(height: 10),
               Row(
                 children: [
                   Expanded(
                     child: TextField(
-                      decoration: _buildInputDecoration('Enter subtask'),
-                      style: GoogleFonts.poppins(),
+                      decoration: _buildInputDecoration('Enter subtask', context),
+                      style: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
                       onChanged: (val) => _subtaskInput = val,
                       onSubmitted: (_) => _addSubtask(),
                       controller: TextEditingController(text: _subtaskInput),
@@ -130,16 +139,19 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                   ),
                   const SizedBox(width: 8),
                   IconButton(
-                    icon: const Icon(Icons.add_circle, color: AppColors.blueText),
+                    icon: Icon(Icons.add_circle, color: theme.colorScheme.primary),
                     onPressed: _addSubtask,
                   ),
                 ],
               ),
               const SizedBox(height: 10),
               ...subtasks.asMap().entries.map((entry) => ListTile(
-                    title: Text(entry.value, style: GoogleFonts.poppins()),
+                    title: Text(
+                      entry.value,
+                      style: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
+                    ),
                     trailing: IconButton(
-                      icon: const Icon(Icons.delete, color: Colors.red),
+                      icon: Icon(Icons.delete, color: theme.colorScheme.error),
                       onPressed: () => _removeSubtask(entry.key),
                     ),
                   )),
@@ -149,7 +161,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                 child: ElevatedButton(
                   onPressed: _submitTask,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.blueText,
+                    backgroundColor: theme.colorScheme.primary,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(20),
@@ -158,7 +170,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                   child: Text(
                     'Create Task',
                     style: GoogleFonts.poppins(
-                      color: Colors.white,
+                      color: theme.colorScheme.onPrimary,
                       fontWeight: FontWeight.w600,
                     ),
                   ),

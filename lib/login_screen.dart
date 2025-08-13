@@ -1,11 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
-import 'main_dashboard.dart';       // ✅ For both teacher and student for now
+import 'main_dashboard.dart'; // ✅ For both teacher and student for now
 import 'app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
-  const LoginScreen({super.key});
+  // make these optional so existing code that used `const LoginScreen()` doesn't break
+  final bool isDarkMode;
+  final ValueChanged<bool>? onToggleTheme;
+
+  const LoginScreen({
+    super.key,
+    this.isDarkMode = false,
+    this.onToggleTheme,
+  });
 
   @override
   State<LoginScreen> createState() => _LoginScreenState();
@@ -28,24 +36,10 @@ class _LoginScreenState extends State<LoginScreen> {
     bool isAuthenticated = _db.authenticate(usernameOrEmail, password);
 
     if (isAuthenticated) {
-      final role = _db.getUserRole(usernameOrEmail);
-
-      if (role == 'admin') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const MainDashboard()),
-        );
-      } else if (role == 'teacher') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const MainDashboard()),
-        );
-      } else {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (_) => const MainDashboard()), // Optional: StudentDashboard()
-        );
-      }
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (_) => const MainDashboard()),
+      );
     } else {
       _showError('Invalid email or password.');
     }
@@ -73,15 +67,42 @@ class _LoginScreenState extends State<LoginScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final textColor = Theme.of(context).brightness == Brightness.dark
+        ? Colors.white
+        : AppColors.blueText;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        actions: [
+          // simple icon-only button (keeps your earlier look)
+          IconButton(
+            icon: Icon(
+              widget.isDarkMode ? Icons.wb_sunny : Icons.nightlight_round,
+              color: textColor,
+            ),
+            onPressed: () => widget.onToggleTheme?.call(!widget.isDarkMode),
+          ),
+
+          // If you'd prefer a button with an icon + text, swap in the TextButton.icon below:
+          /*
+          TextButton.icon(
+            onPressed: () => widget.onToggleTheme?.call(!widget.isDarkMode),
+            icon: Icon(widget.isDarkMode ? Icons.wb_sunny : Icons.nightlight_round, color: textColor),
+            label: Text(widget.isDarkMode ? 'Light' : 'Dark', style: TextStyle(color: textColor)),
+          ),
+          */
+        ],
+      ),
       body: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const SizedBox(height: 60),
+              const SizedBox(height: 40),
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -128,24 +149,31 @@ class _LoginScreenState extends State<LoginScreen> {
                 'Welcome!',
                 style: GoogleFonts.poppins(
                   fontSize: 20,
-                  color: AppColors.blueText,
+                  color: textColor,
                 ),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
-              _buildInputField(_usernameOrEmailController, 'Email'),
+              _buildInputField(_usernameOrEmailController, 'Email or username'),
               const SizedBox(height: 20),
               _buildInputField(_passwordController, 'Password', obscure: true),
               const SizedBox(height: 30),
               ElevatedButton(
                 onPressed: _login,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.blueText,
-                  foregroundColor: Colors.white,
+                  backgroundColor: AppColors.blueText, // Always blue background
+                  foregroundColor: Colors.white,       // Always white text
                   textStyle: const TextStyle(fontWeight: FontWeight.bold),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  elevation: 2,
                 ),
                 child: const Text('SIGN IN'),
               ),
+
+
               const SizedBox(height: 20),
               TextButton(
                 onPressed: _goToResetPassword,
@@ -154,7 +182,7 @@ class _LoginScreenState extends State<LoginScreen> {
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w500,
                     fontSize: 14,
-                    color: AppColors.blueText,
+                    color: textColor,
                   ),
                 ),
               ),
@@ -172,7 +200,9 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,
-        fillColor: Colors.blue[50],
+        fillColor: Theme.of(context).brightness == Brightness.dark
+            ? Colors.grey[800]
+            : Colors.blue[50],
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

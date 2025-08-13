@@ -1,17 +1,65 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'mock_database.dart';
 import 'app_colors.dart';
 
-class SettingsScreen extends StatelessWidget {
+class SettingsScreen extends StatefulWidget {
   final bool isAdmin;
 
-  const SettingsScreen({super.key, required this.isAdmin});
+  /// Optional: pass current theme state and a toggle callback from your app root.
+  /// This keeps compatibility if you don't provide them right away.
+  final bool isDarkMode;
+  final void Function(bool)? onToggleTheme;
+
+  const SettingsScreen({
+    super.key,
+    required this.isAdmin,
+    this.isDarkMode = false,
+    this.onToggleTheme,
+  });
+
+  @override
+  State<SettingsScreen> createState() => _SettingsScreenState();
+}
+
+class _SettingsScreenState extends State<SettingsScreen> {
+  late bool _isDarkMode;
+
+  @override
+  void initState() {
+    super.initState();
+    _isDarkMode = widget.isDarkMode;
+  }
+
+  void _handleThemeChange(bool value) {
+    setState(() => _isDarkMode = value);
+
+    // call app-level callback if provided (this is how you should change the whole app theme)
+    if (widget.onToggleTheme != null) {
+      widget.onToggleTheme!(value);
+    }
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          value ? 'Dark Mode ON' : 'Light Mode ON',
+          style: GoogleFonts.poppins(),
+        ),
+        backgroundColor: AppColors.blueText,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
-    final db = MockDatabase();
-    final role = db.getUserRole(db.currentLoggedInUser ?? '');
+    
+    
+
+    // Dynamic color: blue in light mode, white in dark mode
+    final brightness = Theme.of(context).brightness;
+    final Color textColor = brightness == Brightness.dark ? Colors.white : AppColors.blueText;
+    final IconThemeData iconTheme = IconThemeData(color: textColor);
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -20,12 +68,12 @@ class SettingsScreen extends StatelessWidget {
           'Settings',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: AppColors.blueText,
+            color: textColor,
           ),
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
-        iconTheme: IconThemeData(color: AppColors.blueText),
+        iconTheme: iconTheme,
       ),
       body: ListView(
         padding: const EdgeInsets.all(20),
@@ -35,7 +83,7 @@ class SettingsScreen extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.blueText,
+              color: textColor,
             ),
           ),
           const SizedBox(height: 10),
@@ -46,6 +94,7 @@ class SettingsScreen extends StatelessWidget {
             onTap: () {
               Navigator.pushNamed(context, '/update_password');
             },
+            textColor: textColor,
           ),
 
           const SizedBox(height: 30),
@@ -55,7 +104,7 @@ class SettingsScreen extends StatelessWidget {
             style: GoogleFonts.poppins(
               fontSize: 18,
               fontWeight: FontWeight.bold,
-              color: AppColors.blueText,
+              color: textColor,
             ),
           ),
           const SizedBox(height: 10),
@@ -64,19 +113,30 @@ class SettingsScreen extends StatelessWidget {
             icon: Icons.notifications,
             title: 'Notifications',
             onTap: () {},
+            textColor: textColor,
           ),
-          _buildSettingsTile(
-            context,
-            icon: Icons.brightness_6,
-            title: 'Theme',
-            onTap: () {
-              Navigator.pushNamed(context, '/theme_settings');
-            },
+
+          // MOVED: Theme toggle inline (no separate screen)
+          // This allows everyone (admins/officers included) to toggle the app theme.
+          SwitchListTile(
+            value: _isDarkMode,
+            onChanged: (value) => _handleThemeChange(value),
+            title: Text(
+              'Dark Mode',
+              style: GoogleFonts.poppins(fontSize: 16, color: textColor),
+            ),
+            secondary: Icon(
+              _isDarkMode ? Icons.dark_mode : Icons.light_mode,
+              color: textColor,
+            ),
+            activeColor: AppColors.blueText,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16.0), // match ListTile
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(12), // match ListTile style
+            ),
           ),
 
           const SizedBox(height: 30),
-
-          if (role != 'admin')
             Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -85,7 +145,7 @@ class SettingsScreen extends StatelessWidget {
                   style: GoogleFonts.poppins(
                     fontSize: 18,
                     fontWeight: FontWeight.bold,
-                    color: AppColors.blueText,
+                    color: textColor,
                   ),
                 ),
                 const SizedBox(height: 10),
@@ -96,6 +156,7 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () {
                     Navigator.pushNamed(context, '/help_center');
                   },
+                  textColor: textColor,
                 ),
                 _buildSettingsTile(
                   context,
@@ -104,6 +165,7 @@ class SettingsScreen extends StatelessWidget {
                   onTap: () {
                     Navigator.pushNamed(context, '/about_app');
                   },
+                  textColor: textColor,
                 ),
               ],
             ),
@@ -115,8 +177,46 @@ class SettingsScreen extends StatelessWidget {
             icon: Icons.logout,
             title: 'Log Out',
             onTap: () {
-              Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
+              showDialog(
+                context: context,
+                builder: (context) {
+                  return AlertDialog(
+                    title: Text(
+                      'Confirm Logout',
+                      style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+                    ),
+                    content: Text(
+                      'Are you sure you want to log out?',
+                      style: GoogleFonts.poppins(),
+                    ),
+                    actions: [
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(), // Cancel
+                        child: Text(
+                          'Cancel',
+                          style: GoogleFonts.poppins(color: Colors.grey[600]),
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () {
+                          Navigator.of(context).pop(); // Close dialog
+                          Navigator.pushNamedAndRemoveUntil(
+                            context,
+                            '/login',
+                            (route) => false,
+                          );
+                        },
+                        child: Text(
+                          'Log Out',
+                          style: GoogleFonts.poppins(color: AppColors.blueText),
+                        ),
+                      ),
+                    ],
+                  );
+                },
+              );
             },
+            textColor: textColor,
           ),
         ],
       ),
@@ -124,17 +224,21 @@ class SettingsScreen extends StatelessWidget {
   }
 
   Widget _buildSettingsTile(BuildContext context,
-      {required IconData icon, required String title, required VoidCallback onTap}) {
+      {required IconData icon,
+      required String title,
+      required VoidCallback onTap,
+      Color? textColor}) {
+    final color = textColor ?? AppColors.blueText;
     return ListTile(
-      leading: Icon(icon, color: AppColors.blueText),
+      leading: Icon(icon, color: color),
       title: Text(
         title,
         style: GoogleFonts.poppins(
           fontSize: 16,
-          color: AppColors.blueText,
+          color: color,
         ),
       ),
-      trailing: const Icon(Icons.arrow_forward_ios, size: 16),
+      trailing: Icon(Icons.arrow_forward_ios, size: 16, color: color),
       onTap: onTap,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),

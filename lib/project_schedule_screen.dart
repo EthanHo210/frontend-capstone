@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:table_calendar/table_calendar.dart';
+import 'package:intl/intl.dart';
 import 'mock_database.dart';
 import 'app_colors.dart';
 
@@ -24,24 +25,33 @@ class _ProjectScheduleScreenState extends State<ProjectScheduleScreen> {
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
 
+  String _formatDate(DateTime d) => DateFormat('yyyy-MM-dd').format(d);
+
   @override
   Widget build(BuildContext context) {
     final db = MockDatabase();
     final role = db.getUserRole(db.currentLoggedInUser ?? '');
     final isAdmin = role == 'admin';
 
+    // adaptive colors from the current theme
+    final textColor =
+        Theme.of(context).textTheme.bodyLarge?.color ?? Theme.of(context).colorScheme.onBackground;
+    final subTextColor =
+        Theme.of(context).textTheme.bodyMedium?.color ?? Theme.of(context).colorScheme.onBackground;
+    final primaryColor = Theme.of(context).colorScheme.primary;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: BackButton(color: AppColors.blueText),
+        leading: BackButton(color: textColor),
         title: Text(
           'Project Schedule',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
             fontSize: 22,
-            color: AppColors.blueText,
+            color: textColor,
           ),
         ),
       ),
@@ -52,7 +62,7 @@ class _ProjectScheduleScreenState extends State<ProjectScheduleScreen> {
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 16,
-                  color: AppColors.blueText,
+                  color: textColor,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -63,11 +73,11 @@ class _ProjectScheduleScreenState extends State<ProjectScheduleScreen> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    '\${widget.projectName}\n\${widget.membersCount} Members - Deadline: \${_formatDate(widget.deadline)}',
+                    '${widget.projectName}\n${widget.membersCount} Members - Deadline: ${_formatDate(widget.deadline)}',
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.w500,
-                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 16),
@@ -91,11 +101,14 @@ class _ProjectScheduleScreenState extends State<ProjectScheduleScreen> {
                         color: AppColors.blueText,
                         shape: BoxShape.circle,
                       ),
+                      todayTextStyle: GoogleFonts.poppins(color: Colors.white),
+                      selectedTextStyle: GoogleFonts.poppins(color: Colors.white),
                     ),
                     headerStyle: HeaderStyle(
                       titleTextStyle: GoogleFonts.poppins(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
+                        color: textColor,
                       ),
                       formatButtonVisible: false,
                       titleCentered: true,
@@ -107,7 +120,7 @@ class _ProjectScheduleScreenState extends State<ProjectScheduleScreen> {
                     style: GoogleFonts.poppins(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
-                      color: AppColors.blueText,
+                      color: textColor,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -117,11 +130,17 @@ class _ProjectScheduleScreenState extends State<ProjectScheduleScreen> {
                       borderRadius: BorderRadius.circular(12),
                     ),
                     child: ListTile(
-                      leading: const Icon(Icons.directions_run, color: AppColors.blueText),
-                      title: Text('Project Standup', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+                      leading: Icon(Icons.directions_run, color: primaryColor),
+                      title: Text(
+                        'Project Standup',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          color: textColor,
+                        ),
+                      ),
                       subtitle: Text(
-                        '\${_formatDate(DateTime(2025, 4, 15))}\nTime allotted: 30 minutes',
-                        style: GoogleFonts.poppins(),
+                        '${_formatDate(DateTime(2025, 4, 15))}\nTime allotted: 30 minutes',
+                        style: GoogleFonts.poppins(color: subTextColor),
                       ),
                     ),
                   ),

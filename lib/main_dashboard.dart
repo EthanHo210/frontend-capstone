@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:intl/intl.dart';
-import 'settings_screen.dart';
 import 'mock_database.dart';
 import 'app_colors.dart';
 import 'main.dart';
@@ -88,7 +87,9 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
   Map<String, dynamic>? _getLastCreatedProjectForUser(String username, String role) {
     final allProjects = MockDatabase().getAllProjects();
 
+    // For admins/officers: if there are no projects, return null instead of calling reduce on an empty list.
     if (role == 'admin' || role == 'officer') {
+      if (allProjects.isEmpty) return null;
       return allProjects.reduce((a, b) {
         final aTime = DateTime.tryParse(a['createdAt'] ?? '') ?? DateTime(1970);
         final bTime = DateTime.tryParse(b['createdAt'] ?? '') ?? DateTime(1970);
@@ -99,10 +100,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
     final userProjects = allProjects.where((project) {
       final members = project['members'] is List
           ? List<String>.from(project['members'])
-          : (project['members'] as String)
-              .split(',')
-              .map((e) => e.trim())
-              .toList();
+          : (project['members'] as String).split(',').map((e) => e.trim()).toList();
       return members.contains(username);
     }).toList();
 
@@ -114,6 +112,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
       return aTime.isAfter(bTime) ? a : b;
     });
   }
+
 
   void _onItemTapped(int index) async {
     final db = MockDatabase();
@@ -156,19 +155,17 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
               ),
             );
           } else {
+            // Admins/officers: show a specific message when there are no projects at all
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("You are not in any project.")),
+              const SnackBar(content: Text('There are no projects available.')),
             );
           }
           break;
+
         case 3:
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => SettingsScreen(isAdmin: true),
-            ),
-          );
+          Navigator.pushNamed(context, '/settings');
           break;
+
         case 4:
           Navigator.push(
             context,
@@ -219,17 +216,12 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("You are not in any project.")),
+              const SnackBar(content: Text("You are not in any project.")),
             );
           }
           break;
         case 3:
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => SettingsScreen(isAdmin: false),
-            ),
-          );
+          Navigator.pushNamed(context, '/settings');
           break;
       }
     } else {
@@ -272,21 +264,16 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
             );
           } else {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("You are not in any project.")),
+              const SnackBar(content: Text("You are not in any project.")),
             );
           }
+          break;
         case 2:
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => SettingsScreen(isAdmin: false),
-            ),
-          );
+          Navigator.pushNamed(context, '/settings');
           break;
       }
     }
   }
-
 
   Color getStatusColor(String status) {
     switch (status) {
@@ -314,11 +301,10 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
     final existingCourses = db.getCourses().toSet();
 
     final projects = db.getAllProjects().where((project) {
-      // skip projects whose course no longer exists
       final projectCourse = project['course']?.toString() ?? '';
       if (!existingCourses.contains(projectCourse)) return false;
 
-      if (role == 'admin' || role == 'officer') return true; // Admins & Officers see everything
+      if (role == 'admin' || role == 'officer') return true;
 
       final members = project['members'] is List
           ? List<String>.from(project['members'])
@@ -326,18 +312,22 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
       return members.contains(username);
     }).toList();
 
-
     if (projects.isEmpty) {
       return [
         const SizedBox(height: 12),
         Text(
           'There are currently no projects.',
-          style: GoogleFonts.poppins(fontSize: 16, color: Colors.grey),
+          style: GoogleFonts.poppins(
+            fontSize: 16,
+            color: Theme.of(context).textTheme.bodyMedium?.color,
+          ),
         ),
       ];
     }
 
     projects.sort((a, b) => DateTime.parse(b['startDate']).compareTo(DateTime.parse(a['startDate'])));
+
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return projects.take(3).map((project) {
       final name = project['name'] ?? 'Unnamed';
@@ -365,17 +355,41 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
           margin: const EdgeInsets.symmetric(vertical: 6),
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            color: Colors.purple[50],
+            color: isDark
+                ? const Color(0xFF2A3181).withOpacity(0.20)
+                : Colors.purple[50],
             borderRadius: BorderRadius.circular(10),
           ),
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                Text(name, style: GoogleFonts.poppins(fontWeight: FontWeight.bold, fontSize: 14)),
-                Text('Course: $course', style: GoogleFonts.poppins(fontSize: 12)),
-                Text('Deadline: $deadlineFormatted', style: GoogleFonts.poppins(fontSize: 12)),
-              ]),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    name,
+                    style: GoogleFonts.poppins(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 14,
+                      color: Theme.of(context).textTheme.bodyLarge?.color,
+                    ),
+                  ),
+                  Text(
+                    'Course: $course',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                    ),
+                  ),
+                  Text(
+                    'Deadline: $deadlineFormatted',
+                    style: GoogleFonts.poppins(
+                      fontSize: 12,
+                      color: Theme.of(context).textTheme.bodyMedium?.color,
+                    ),
+                  ),
+                ],
+              ),
               Text(
                 status,
                 style: GoogleFonts.poppins(
@@ -396,7 +410,17 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
     final db = MockDatabase();
     final userEmail = db.currentLoggedInUser ?? 'Guest';
     final username = db.getUsernameByEmail(userEmail) ?? userEmail;
-    final fullName = db.getFullNameByUsername(userEmail) ?? userEmail.split('@')[0];
+
+    String fullName = db.getFullNameByUsername(username) ?? '';
+    if (fullName.isEmpty) {
+      final userRecord = db.getUserByEmail(userEmail);
+      if (userRecord != null && (userRecord['fullName'] ?? '').toString().isNotEmpty) {
+        fullName = userRecord['fullName'];
+      }
+    }
+    final displayName =
+        fullName.isNotEmpty ? fullName : (username.contains('@') ? username.split('@')[0] : username);
+
     final isLoggedIn = userEmail != 'Guest';
 
     final projectInfo = _projectInfo ?? {
@@ -406,11 +430,18 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
       'deadline': '',
     };
 
-    final projectName = projectInfo['project']!;
+    final projectName = projectInfo['name'] ?? projectInfo['project'] ?? 'No project';
     final deadlineRaw = projectInfo['deadline'] ?? 'N/A';
     final deadlineFormatted = deadlineRaw != 'N/A' && deadlineRaw.isNotEmpty
         ? DateFormat('yyyy-MM-dd - HH:mm:ss').format(DateTime.parse(deadlineRaw))
         : 'N/A';
+
+    // THEME-ADAPTIVE TEXT COLORS
+    final textTheme = Theme.of(context).textTheme;
+    final titleColor = textTheme.titleLarge?.color ?? Theme.of(context).colorScheme.onBackground;
+    final bodyColor  = textTheme.bodyMedium?.color ?? Theme.of(context).colorScheme.onBackground;
+    final navColor = Theme.of(context).textTheme.bodyMedium?.color ?? Theme.of(context).colorScheme.onBackground;
+    final projectStatus = (_projectInfo != null) ? (_projectInfo!['status'] ?? 'N/A') : 'N/A';
 
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -421,6 +452,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
         title: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Logo stays brand colors regardless of theme
             Text(
               'To',
               style: GoogleFonts.kavoon(
@@ -430,11 +462,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                   fontWeight: FontWeight.bold,
                   fontStyle: FontStyle.italic,
                   shadows: [
-                    Shadow(
-                      offset: Offset(4.0, 4.0),
-                      blurRadius: 1.5,
-                      color: Colors.white,
-                    ),
+                    Shadow(offset: Offset(4.0, 4.0), blurRadius: 1.5, color: Colors.white),
                   ],
                 ),
               ),
@@ -448,11 +476,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                   fontWeight: FontWeight.bold,
                   fontStyle: FontStyle.italic,
                   shadows: [
-                    Shadow(
-                      offset: Offset(4.0, 4.0),
-                      blurRadius: 1.5,
-                      color: Colors.white,
-                    ),
+                    Shadow(offset: Offset(4.0, 4.0), blurRadius: 1.5, color: Colors.white),
                   ],
                 ),
               ),
@@ -466,21 +490,21 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
               child: Row(
                 children: [
                   CircleAvatar(
-                    backgroundColor: AppColors.navbar,
+                    backgroundColor: Colors.transparent,
                     child: Text(
-                      fullName.isNotEmpty ? fullName[0].toUpperCase() : username[0].toUpperCase(),
+                      displayName.isNotEmpty ? displayName[0].toUpperCase() : '?',
                       style: GoogleFonts.poppins(
                         fontWeight: FontWeight.bold,
-                        color: AppColors.blueText,
+                        color: titleColor, // ADAPTIVE
                       ),
                     ),
                   ),
                   const SizedBox(width: 8),
                   Text(
-                    fullName.isNotEmpty ? fullName : username,
+                    displayName,
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.w500,
-                      color: AppColors.blueText,
+                      color: titleColor, // ADAPTIVE
                     ),
                   ),
                 ],
@@ -501,25 +525,39 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                     style: GoogleFonts.poppins(
                       fontWeight: FontWeight.bold,
                       fontSize: 16,
-                      color: AppColors.blueText,
+                      color: titleColor, // ADAPTIVE
                     ),
                   ),
                   const SizedBox(height: 12),
-                  Text(
-                    'Current Project: $projectName\n'
-                    'Status: ',
-                    textAlign: TextAlign.center,
-                    style: GoogleFonts.poppins(
-                      fontSize: 16,
-                      fontWeight: FontWeight.normal,
-                      color: AppColors.blueText,
+                  Text.rich(
+                    TextSpan(
+                      children: [
+                        TextSpan(
+                          text: 'Current Project: $projectName\nStatus: ',
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.normal,
+                            color: bodyColor,
+                          ),
+                        ),
+                        TextSpan(
+                          text: projectStatus,
+                          style: GoogleFonts.poppins(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            // use your helper to color status (falls back to bodyColor if unknown)
+                            color: getStatusColor(projectStatus) ?? bodyColor,
+                          ),
+                        ),
+                      ],
                     ),
+                    textAlign: TextAlign.center,
                   ),
                   Text(
                     'Deadline: $deadlineFormatted',
                     style: GoogleFonts.poppins(
                       fontSize: 16,
-                      color: AppColors.blueText,
+                      color: bodyColor, // ADAPTIVE
                     ),
                   ),
                 ],
@@ -532,7 +570,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                 style: GoogleFonts.poppins(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: AppColors.blueText,
+                  color: titleColor, // ADAPTIVE
                 ),
               ),
             ),
@@ -541,80 +579,51 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
           ],
         ),
       ),
+
       bottomNavigationBar: BottomNavigationBar(
-        selectedItemColor: AppColors.blueText,
-        unselectedItemColor: Colors.grey,
+        type: BottomNavigationBarType.fixed,
+        // make selected/unselected identical so nothing looks highlighted
+        selectedItemColor: navColor,
+        unselectedItemColor: navColor,
+        // ensure icons also use the same color
+        selectedIconTheme: IconThemeData(color: navColor),
+        unselectedIconTheme: IconThemeData(color: navColor),
+        // keep labels the same too
+        selectedLabelStyle: TextStyle(color: navColor),
+        unselectedLabelStyle: TextStyle(color: navColor),
         showUnselectedLabels: true,
         currentIndex: _selectedIndex,
         onTap: _onItemTapped,
-        backgroundColor: AppColors.navbar,
+        backgroundColor: Theme.of(context).colorScheme.surface,
         iconSize: 32,
         selectedFontSize: 14,
         unselectedFontSize: 12,
         items: _userRole == 'user'
-          ? const [
-              BottomNavigationBarItem(
-                icon: Icon(Icons.assignment),
-                label: 'Projects',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.track_changes),
-                label: 'Tracking',
-              ),
-              BottomNavigationBarItem(
-                icon: Icon(Icons.settings),
-                label: 'Settings',
-              ),
-            ]
-          : (_userRole == 'admin' || _userRole == 'officer')
-              ? const [
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.lightbulb_outline),
-                    label: 'Start New',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.assignment),
-                    label: 'Projects',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.track_changes),
-                    label: 'Tracking',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.settings),
-                    label: 'Settings',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.manage_accounts),
-                    label: 'Manage',
-                  ),
-                ]
-              : const [ // for teachers only
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.lightbulb_outline),
-                    label: 'Start New',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.assignment),
-                    label: 'Projects',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.track_changes),
-                    label: 'Tracking',
-                  ),
-                  BottomNavigationBarItem(
-                    icon: Icon(Icons.settings),
-                    label: 'Settings',
-                  ),
-                ],
+            ? const [
+                BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'Projects'),
+                BottomNavigationBarItem(icon: Icon(Icons.track_changes), label: 'Tracking'),
+                BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+              ]
+            : (_userRole == 'admin' || _userRole == 'officer')
+                ? const [
+                    BottomNavigationBarItem(icon: Icon(Icons.lightbulb_outline), label: 'Start New'),
+                    BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'Projects'),
+                    BottomNavigationBarItem(icon: Icon(Icons.track_changes), label: 'Tracking'),
+                    BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+                    BottomNavigationBarItem(icon: Icon(Icons.manage_accounts), label: 'Manage'),
+                  ]
+                : const [
+                    BottomNavigationBarItem(icon: Icon(Icons.lightbulb_outline), label: 'Start New'),
+                    BottomNavigationBarItem(icon: Icon(Icons.assignment), label: 'Projects'),
+                    BottomNavigationBarItem(icon: Icon(Icons.track_changes), label: 'Tracking'),
+                    BottomNavigationBarItem(icon: Icon(Icons.settings), label: 'Settings'),
+                  ],
       ),
       floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.blueText,
-        onPressed: () {
-          Navigator.pushNamed(context, '/user_logs');
-        },
+        backgroundColor: AppColors.blueText, // brand-locked
+        onPressed: () => Navigator.pushNamed(context, '/user_logs'),
         tooltip: 'View Members',
-        child: const Icon(Icons.group),
+        child: const Icon(Icons.group, color: Colors.white),
       ),
     );
   }

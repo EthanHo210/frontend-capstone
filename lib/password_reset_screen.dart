@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'mock_database.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'app_colors.dart';
 
 class PasswordResetScreen extends StatefulWidget {
@@ -11,10 +11,9 @@ class PasswordResetScreen extends StatefulWidget {
 }
 
 class _PasswordResetScreenState extends State<PasswordResetScreen> {
-  final MockDatabase _db = MockDatabase();
   final TextEditingController _emailController = TextEditingController();
 
-  void _resetPassword() {
+  void _resetPassword() async {
     final email = _emailController.text.trim();
 
     if (email.isEmpty) {
@@ -22,12 +21,32 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
       return;
     }
 
-    if (_db.isEmailExists(email)) {
-      _showDialog('Reset instructions have been sent. Please check your email.');
-    } else {
-      _showDialog('Email not found. Please try again.');
+    try {
+      // 1. Call Firebase Authentication to send the reset email
+      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+
+      // 2. Show a success dialog
+      _showDialog('A password reset link has been sent to your email. Please check your inbox.');
+
+    } on FirebaseAuthException catch (e) {
+      // 3. Handle specific Firebase errors
+      String errorMessage;
+      if (e.code == 'user-not-found') {
+        errorMessage = 'Email not found. Please try again.';
+      } else if (e.code == 'invalid-email') {
+        errorMessage = 'The email address is not valid.';
+      } else {
+        errorMessage = 'An error occurred. Please try again.';
+      }
+      _showDialog(errorMessage);
+
+    } catch (e) {
+      // 4. Handle any other general errors
+      print('An unexpected error occurred: $e');
+      _showDialog('An unexpected error occurred. Please try again.');
     }
   }
+
 
   void _showDialog(String message) {
     showDialog(
@@ -47,6 +66,8 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor, 
       body: Center(
@@ -64,6 +85,13 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                       fontSize: 32,
                       fontWeight: FontWeight.bold,
                       color: AppColors.blueText,
+                      shadows: [
+                        Shadow(
+                          blurRadius: 4,
+                          color: Colors.black26,
+                          offset: Offset(2, 2),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -72,10 +100,10 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
               Text(
                 'Reset your password',
                 style: GoogleFonts.poppins(
-                  textStyle: const TextStyle(
+                  textStyle: TextStyle(
                     fontSize: 20,
                     fontWeight: FontWeight.w600,
-                    color: AppColors.blueText,
+                    color: isDarkMode ? Colors.white : AppColors.blueText,
                   ),
                 ),
               ),
@@ -85,7 +113,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                 decoration: InputDecoration(
                   hintText: 'Email address',
                   filled: true,
-                  fillColor: Colors.blue[50],
+                  fillColor: isDarkMode ? Colors.grey[800] : Colors.blue[50],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(10),
                     borderSide: BorderSide.none,
@@ -96,15 +124,15 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
               ElevatedButton(
                 onPressed: _resetPassword,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.blueText,
+                  backgroundColor: isDarkMode ? Colors.white : AppColors.blueText,
                   padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 32),
                 ),
                 child: Text(
                   'RESET PASSWORD',
                   style: GoogleFonts.poppins(
-                    textStyle: const TextStyle(
+                    textStyle: TextStyle(
                       fontWeight: FontWeight.w600,
-                      color: Colors.white,
+                      color: isDarkMode ? Colors.black : Colors.white,
                     ),
                   ),
                 ),
@@ -119,7 +147,7 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
                   style: GoogleFonts.poppins(
                     fontWeight: FontWeight.w600,
                     fontSize: 14,
-                    color: AppColors.blueText,
+                    color: isDarkMode ? Colors.white : AppColors.blueText,
                   ),
                 ),
               ),
@@ -129,4 +157,5 @@ class _PasswordResetScreenState extends State<PasswordResetScreen> {
       ),
     );
   }
+
 }

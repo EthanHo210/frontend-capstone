@@ -36,14 +36,14 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
               u['role'] != 'officer')
           .map((u) => {
                 'username': u['username'].toString(),
-                'fullName': u['fullName'].toString(),
+                'fullName': (u['fullName'] ?? u['username']).toString(),
                 'role': u['role'].toString(),
               })
           .toList();
       _userItems = _userList.map((user) {
         final display = user['role'] == 'teacher'
-          ? '${user['fullName']} (teacher)'
-          : user['fullName'] ?? '';
+            ? '${user['fullName']} (teacher)'
+            : user['fullName'] ?? user['username']!;
         return MultiSelectItem<String>(user['username']!, display);
       }).toList();
       _availableCourses = db.getCourses();
@@ -105,7 +105,6 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     }
   }
 
-
   void _submitProject() {
     final name = _nameController.text.trim();
     final db = MockDatabase();
@@ -118,7 +117,6 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
         _selectedUsers.add(currentUser);
       }
     }
-
 
     db.addProject({
       'name': name,
@@ -179,20 +177,25 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // theme-aware colors so text is readable in dark mode
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryText = Theme.of(context).textTheme.bodyLarge?.color ?? (isDark ? Colors.white : Colors.black);
+    final inputFill = isDark ? Colors.grey[800] : Colors.blue[50];
+
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.blueText),
+          icon: Icon(Icons.arrow_back, color: primaryText),
           onPressed: () => Navigator.pop(context),
         ),
         title: Text(
           'Start Your Project',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: AppColors.blueText,
+            color: primaryText,
           ),
         ),
       ),
@@ -201,23 +204,24 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildInputField(_nameController, 'Group Name'),
+            _buildInputField(context, _nameController, 'Group Name'),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
               decoration: InputDecoration(
                 hintText: 'Select Course',
                 filled: true,
-                fillColor: Colors.blue[50],
+                fillColor: inputFill,
                 border: OutlineInputBorder(
                   borderRadius: BorderRadius.circular(12),
                   borderSide: BorderSide.none,
                 ),
               ),
               value: _selectedCourse,
+              style: TextStyle(color: primaryText),
               items: _availableCourses
                   .map((course) => DropdownMenuItem(
                         value: course,
-                        child: Text(course),
+                        child: Text(course, style: TextStyle(color: primaryText)),
                       ))
                   .toList(),
               onChanged: (value) => setState(() => _selectedCourse = value),
@@ -225,7 +229,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
             const SizedBox(height: 16),
             Text(
               'Add Members to this Project:',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: primaryText),
             ),
             const SizedBox(height: 8),
             MultiSelectDialogField<String>(
@@ -233,14 +237,14 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
               title: const Text("Select Members"),
               selectedColor: AppColors.blueText,
               decoration: BoxDecoration(
-                color: Colors.blue[50],
+                color: inputFill,
                 borderRadius: BorderRadius.circular(12),
                 border: Border.all(color: Colors.transparent),
               ),
-              buttonIcon: const Icon(Icons.person_add, color: AppColors.blueText),
+              buttonIcon: Icon(Icons.person_add, color: primaryText),
               buttonText: Text(
                 "Select members to add",
-                style: GoogleFonts.poppins(color: AppColors.blueText),
+                style: GoogleFonts.poppins(color: primaryText),
               ),
               onConfirm: (values) {
                 setState(() => _selectedUsers = values);
@@ -248,10 +252,8 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
               chipDisplay: MultiSelectChipDisplay(
                 items: _selectedUsers.map((e) {
                   final role = _userList.firstWhere((u) => u['username'] == e)['role'];
-                  return MultiSelectItem<String>(
-                    e,
-                    role == 'teacher' ? '$e (teacher)' : e,
-                  );
+                  final label = role == 'teacher' ? '$e (teacher)' : e;
+                  return MultiSelectItem<String>(e, label);
                 }).toList(),
                 onTap: (value) {
                   setState(() => _selectedUsers.remove(value));
@@ -261,18 +263,18 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
             const SizedBox(height: 16),
             Row(
               children: [
-                const Icon(Icons.calendar_today, color: AppColors.blueText),
+                Icon(Icons.calendar_today, color: primaryText),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     _deadline != null
                         ? 'Deadline: ${_deadline!.toLocal().toString().substring(0, 16)}'
                         : 'Pick Project Deadline',
-                    style: GoogleFonts.poppins(fontSize: 16),
+                    style: GoogleFonts.poppins(fontSize: 16, color: primaryText),
                   ),
                 ),
                 IconButton(
-                  icon: const Icon(Icons.date_range, color: AppColors.blueText),
+                  icon: Icon(Icons.date_range, color: primaryText),
                   onPressed: _pickDeadline,
                 ),
               ],
@@ -298,13 +300,20 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     );
   }
 
-  Widget _buildInputField(TextEditingController controller, String hintText) {
+  // NOTE: changed to accept BuildContext so we can use theme colors here.
+  Widget _buildInputField(BuildContext context, TextEditingController controller, String hintText) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final primaryText = Theme.of(context).textTheme.bodyLarge?.color ?? (isDark ? Colors.white : Colors.black);
+    final inputFill = isDark ? Colors.grey[800] : Colors.blue[50];
+
     return TextField(
       controller: controller,
+      style: TextStyle(color: primaryText),
       decoration: InputDecoration(
         hintText: hintText,
+        hintStyle: TextStyle(color: primaryText?.withOpacity(0.6)),
         filled: true,
-        fillColor: Colors.blue[50],
+        fillColor: inputFill,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,

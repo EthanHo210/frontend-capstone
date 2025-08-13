@@ -27,7 +27,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
         return AlertDialog(
           title: Text(
             'Create New User',
-            style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
+            // <-- fixed brand color instead of theme-dependent color
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.bold,
+              color: AppColors.blueText,
+            ),
           ),
           content: SingleChildScrollView(
             child: Column(
@@ -43,7 +47,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   value: selectedRole,
                   decoration: InputDecoration(
                     filled: true,
-                    fillColor: Colors.blue[50],
+                    fillColor: Theme.of(context).brightness == Brightness.dark
+                        ? Colors.grey[800]
+                        : Colors.blue[50],
                     border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: BorderSide.none,
@@ -93,7 +99,49 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 setState(() {});
                 Navigator.pop(context);
               },
-              child: const Text('Create'),
+              // <-- make this a brand-colored elevated button for consistency
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.blueText,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () {
+                  // same handler as above — run it then close dialog
+                  final username = usernameController.text.trim();
+                  final email = emailController.text.trim();
+                  final rawPassword = passwordController.text.trim();
+
+                  if (username.isEmpty || email.isEmpty || rawPassword.isEmpty) {
+                    showDialog(
+                      context: context,
+                      builder: (_) => AlertDialog(
+                        title: const Text('Missing Information'),
+                        content: const Text('All fields are required.'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context),
+                            child: const Text('OK'),
+                          ),
+                        ],
+                      ),
+                    );
+                    return;
+                  }
+
+                  final hashedPassword = sha256.convert(utf8.encode(rawPassword)).toString();
+
+                  db.registerUserWithRole(
+                    username,
+                    email,
+                    hashedPassword,
+                    selectedRole,
+                  );
+
+                  setState(() {});
+                  Navigator.pop(context);
+                },
+                child: const Text('Create'),
+              ),
             ),
           ],
         );
@@ -108,7 +156,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,
-        fillColor: Colors.blue[50],
+        fillColor: Theme.of(context).brightness == Brightness.dark
+            ? Colors.grey[800]
+            : Colors.blue[50],
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
@@ -131,7 +181,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       builder: (context) => AlertDialog(
         title: Text(
           'Manage $oldUsername',
-          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
+          // <-- keep title color fixed
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
+            color: AppColors.blueText,
+          ),
         ),
         content: SingleChildScrollView(
           child: Column(
@@ -142,7 +196,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 decoration: InputDecoration(
                   hintText: 'Username',
                   filled: true,
-                  fillColor: Colors.blue[50],
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[800]
+                      : Colors.blue[50],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -155,7 +211,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 decoration: InputDecoration(
                   hintText: 'Email',
                   filled: true,
-                  fillColor: Colors.blue[50],
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[800]
+                      : Colors.blue[50],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -169,7 +227,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 decoration: InputDecoration(
                   hintText: 'New Password (leave blank to keep current)',
                   filled: true,
-                  fillColor: Colors.blue[50],
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[800]
+                      : Colors.blue[50],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -181,7 +241,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 value: selectedRole,
                 decoration: InputDecoration(
                   filled: true,
-                  fillColor: Colors.blue[50],
+                  fillColor: Theme.of(context).brightness == Brightness.dark
+                      ? Colors.grey[800]
+                      : Colors.blue[50],
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide.none,
@@ -214,14 +276,36 @@ class _AdminDashboardState extends State<AdminDashboard> {
               setState(() {});
               Navigator.pop(context);
             },
-            child: const Text('Save Changes'),
+            // <-- use brand color for the confirm action
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.blueText,
+                foregroundColor: Colors.white,
+              ),
+              onPressed: () {
+                final newUsername = usernameController.text.trim();
+                final email = emailController.text.trim();
+                final newPassword = passwordController.text.trim();
+                final updatedPassword = newPassword.isEmpty ? user['password'] : newPassword;
+
+                if (newUsername.isEmpty || email.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Username and Email cannot be empty.')),
+                  );
+                  return;
+                }
+
+                db.updateUser(oldUsername, email, updatedPassword, selectedRole, newUsername: newUsername);
+                setState(() {});
+                Navigator.pop(context);
+              },
+              child: const Text('Save Changes'),
+            ),
           ),
         ],
       ),
     );
   }
-
-
 
   void _deleteUser(String username) {
     if (username == 'admin') return;
@@ -248,14 +332,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
               setState(() {});
               Navigator.pop(context);
             },
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
             child: const Text('Confirm', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
   }
-
 
   @override
   Widget build(BuildContext context) {
@@ -273,6 +356,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
               onPressed: () => Navigator.pop(context),
             ),
             const SizedBox(width: 4),
+            // logo kept with explicit colours & shadows so it never changes with theme
             Text(
               'To',
               style: GoogleFonts.kavoon(
@@ -329,10 +413,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
             elevation: 3,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ListTile(
-              title: Text(username, style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+              // <-- fixed brand color for title (prevents it switching with theme)
+              title: Text(
+                username,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: AppColors.blueText),
+              ),
               subtitle: Text(
                 'Email: ${user['email']}\nRole: ${user['role']}',
-                style: GoogleFonts.poppins(),
+                style: GoogleFonts.poppins(color: AppColors.blueText.withOpacity(0.8)),
               ),
               trailing: username == 'admin'
                   ? const Text('(Admin)', style: TextStyle(fontWeight: FontWeight.bold))

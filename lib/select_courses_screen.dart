@@ -30,17 +30,26 @@ class SelectCoursesScreen extends StatelessWidget {
             .toSet()
             .toList();
 
+    // Theme-aware colors:
+    final textColor = Theme.of(context).textTheme.titleLarge?.color
+        ?? Theme.of(context).textTheme.bodyLarge?.color
+        ?? Colors.black;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    // keep a subtle blue tint in light mode, and a faint indigo tint in dark mode for cards
+    final cardColor = isDark ? AppColors.blueText.withOpacity(0.10) : Colors.blue[50];
 
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
-        leading: const BackButton(color: AppColors.blueText),
+        // let AppBar's iconTheme pick up the text color
+        iconTheme: IconThemeData(color: textColor),
+        leading: BackButton(), // color comes from iconTheme
         title: Text(
           'Select a Course',
           style: GoogleFonts.poppins(
             fontWeight: FontWeight.bold,
-            color: AppColors.blueText,
+            color: textColor,
             fontSize: 20,
           ),
         ),
@@ -52,7 +61,7 @@ class SelectCoursesScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
                 style: GoogleFonts.poppins(
                   fontSize: 18,
-                  color: AppColors.blueText,
+                  color: textColor,
                   fontWeight: FontWeight.w500,
                 ),
               ),
@@ -63,13 +72,18 @@ class SelectCoursesScreen extends StatelessWidget {
               itemBuilder: (context, index) {
                 final course = visibleCourses[index];
                 return Card(
-                  color: Colors.blue[50],
+                  color: cardColor,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   child: ListTile(
                     title: Text(
                       course,
-                      style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w500),
+                      style: GoogleFonts.poppins(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w500,
+                        color: textColor,
+                      ),
                     ),
+                    // trailing arrow kept brand-locked; change to `textColor` if you want it to adapt instead
                     trailing: const Icon(Icons.arrow_forward_ios, color: AppColors.blueText),
                     onTap: () {
                       Navigator.push(
