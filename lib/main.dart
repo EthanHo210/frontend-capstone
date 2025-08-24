@@ -24,12 +24,11 @@ import 'manage_courses_screen.dart';
 import 'assign_leader_screen.dart';
 import 'assign_task_screen.dart';
 import 'settings_screen.dart';
+import 'route_observer.dart';
 
 void main() {
   runApp(const TogetherApp());
 }
-
-final RouteObserver<ModalRoute<void>> routeObserver = RouteObserver<ModalRoute<void>>();
 
 class TogetherApp extends StatefulWidget {
   const TogetherApp({super.key});
@@ -44,7 +43,7 @@ class _TogetherAppState extends State<TogetherApp> {
   @override
   void initState() {
     super.initState();
-    _loadTheme(); // Load saved theme on app start
+    _loadTheme();
   }
 
   Future<void> _loadTheme() async {
@@ -64,7 +63,7 @@ class _TogetherAppState extends State<TogetherApp> {
     setState(() {
       _themeMode = isDark ? ThemeMode.dark : ThemeMode.light;
     });
-    _saveTheme(isDark); // Persist choice
+    _saveTheme(isDark);
   }
 
   @override
@@ -133,21 +132,24 @@ class _TogetherAppState extends State<TogetherApp> {
                 isDarkMode: _themeMode == ThemeMode.dark,
                 onToggleTheme: (isDark) {
                   _toggleTheme(isDark);
-                  // Immediately save and reflect the change so it's correct when returning
                   _saveTheme(isDark);
                 },
               ),
             );
 
-
-          case '/projectStatus':
-            final args = settings.arguments as Map<String, dynamic>;
+          case '/projectStatus': {
+            final args = (settings.arguments as Map?) ?? {};
             return MaterialPageRoute(
               builder: (_) => ProjectStatusScreen(
-                projectName: args['projectName'],
-                courseName: args['courseName'],
+                projectName: args['projectName'] as String,
+                courseName: args['courseName'] as String,
+                embedded: (args['embedded'] as bool?) ?? false,
+                // onOpenAssignTaskEmbedded is only useful when shown inside MainDashboard,
+                // so we usually don’t pass a callback here.
               ),
             );
+          }
+
 
           case '/projectSchedule':
             final args = settings.arguments as Map<String, dynamic>;
@@ -163,21 +165,14 @@ class _TogetherAppState extends State<TogetherApp> {
             return MaterialPageRoute(
               builder: (_) => LoginScreen(
                 isDarkMode: _themeMode == ThemeMode.dark,
-                onToggleTheme: _toggleTheme, // typed: void Function(bool)
+                onToggleTheme: _toggleTheme,
               ),
             );
 
-
-
           case '/dashboard':
-            final db = MockDatabase();
-            final user = db.currentLoggedInUser;
-            final role = user != null ? db.getUserRole(user) : 'user';
-            if (role == 'admin' || role == 'officer') {
-              return MaterialPageRoute(builder: (_) => const AdminDashboard());
-            } else {
-              return MaterialPageRoute(builder: (_) => const MainDashboard());
-            }
+            // Always go to MainDashboard; role-specific admin/officer tools
+            // are surfaced inside it as embedded pages with shared chrome.
+            return MaterialPageRoute(builder: (_) => const MainDashboard());
 
           case '/start_new_project':
             return MaterialPageRoute(builder: (_) => const StartNewProjectScreen());

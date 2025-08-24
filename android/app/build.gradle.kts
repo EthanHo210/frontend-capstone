@@ -7,7 +7,10 @@ plugins {
 
 android {
     namespace = "com.example.flutter_application_1"
-    compileSdk = flutter.compileSdkVersion
+
+    // Kotlin DSL: ensure Int
+    compileSdk = flutter.compileSdkVersion.toInt()
+
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -20,20 +23,20 @@ android {
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.flutter_application_1"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
-        minSdk = 23
-        targetSdk = flutter.targetSdkVersion
+
+        // Kotlin DSL: use `minSdk =` and convert to Int
+        minSdk = flutter.minSdkVersion.toInt()
+
+        // Kotlin DSL: ensure Int
+        targetSdk = flutter.targetSdkVersion.toInt()
+
         versionCode = flutter.versionCode
         versionName = flutter.versionName
     }
 
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
             signingConfig = signingConfigs.getByName("debug")
         }
     }

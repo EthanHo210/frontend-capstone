@@ -1,6 +1,9 @@
+// start_new_project.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:multi_select_flutter/multi_select_flutter.dart';
+import 'package:intl/intl.dart';
+
 import 'mock_database.dart';
 import 'app_colors.dart';
 
@@ -13,41 +16,64 @@ class StartNewProjectScreen extends StatefulWidget {
 
 class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
   final TextEditingController _nameController = TextEditingController();
+
   DateTime? _deadline;
-  List<String> _selectedUsers = [];
-  List<Map<String, String>> _userList = [];
-  List<MultiSelectItem<String>> _userItems = [];
   String? _selectedCourse;
-  List<String> _availableCourses = [];
+
+  final List<String> _selectedUsers = [];
+  late final List<Map<String, String>> _userList;
+  late final List<MultiSelectItem<String>> _userItems;
+  late final List<String> _availableCourses;
+
+  bool _submitting = false;
 
   @override
   void initState() {
     super.initState();
     final db = MockDatabase();
     final role = db.getUserRole(db.currentLoggedInUser ?? '');
+
+    // Gate access: allow teacher/admin/officer
     if (role != 'teacher' && role != 'admin' && role != 'officer') {
-      Future.microtask(() => _showUnauthorized());
-    } else {
-      _userList = db
-          .getAllUsers()
-          .where((u) =>
-              u['username'] != 'admin' &&
-              u['role'] != 'admin' &&
-              u['role'] != 'officer')
-          .map((u) => {
-                'username': u['username'].toString(),
-                'fullName': (u['fullName'] ?? u['username']).toString(),
-                'role': u['role'].toString(),
-              })
-          .toList();
-      _userItems = _userList.map((user) {
-        final display = user['role'] == 'teacher'
-            ? '${user['fullName']} (teacher)'
-            : user['fullName'] ?? user['username']!;
-        return MultiSelectItem<String>(user['username']!, display);
-      }).toList();
-      _availableCourses = db.getCourses();
+      Future.microtask(_showUnauthorized);
+      _userList = const [];
+      _userItems = const [];
+      _availableCourses = const [];
+      return;
     }
+
+    // Build users list (exclude admins & officers from selection)
+    _userList = db
+        .getAllUsers()
+        .where((u) =>
+            (u['username'] ?? '') != 'admin' &&
+            (u['role'] ?? '') != 'admin' &&
+            (u['role'] ?? '') != 'officer')
+        .map((u) => {
+              'username': (u['username'] ?? '').toString(),
+              'fullName': (u['fullName'] ?? u['username'] ?? '').toString(),
+              'role': (u['role'] ?? 'user').toString(),
+            })
+        .toList();
+
+    _userItems = _userList.map((user) {
+      final isTeacher = user['role'] == 'teacher';
+      final label = isTeacher
+          ? '${user['fullName']} (${user['username']}) • teacher'
+          : '${user['fullName']} (${user['username']})';
+      return MultiSelectItem<String>(user['username']!, label);
+    }).toList();
+
+    final coursesRaw = db.getCourses();
+    _availableCourses = (coursesRaw is Iterable)
+        ? List<String>.from(coursesRaw.map((e) => e.toString()))
+        : <String>[];
+  }
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
   }
 
   void _showUnauthorized() {
@@ -55,23 +81,65 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Access Denied'),
-        content: const Text('Only teachers and admins are allowed to start a new project.'),
+        content: const Text(
+          'Only teachers, admins, and officers are allowed to start a new project.',
+        ),
         actions: [
           TextButton(
             child: const Text('OK'),
-            onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+            onPressed: () => Navigator.of(context).pop(),
           ),
         ],
       ),
-    );
+    ).then((_) => Navigator.of(context).maybePop());
   }
 
-  void _confirmSubmitProject() async {
-    final name = _nameController.text.trim();
-    final formattedDeadline = _deadline?.toIso8601String();
+  Future<void> _pickDeadline() async {
+    final date = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now().add(const Duration(days: 1)),
+      firstDate: DateTime.now(),
+      lastDate: DateTime(2100),
+      builder: (ctx, child) => Theme(data: Theme.of(context), child: child!),
+    );
+    if (date == null) return;
 
-    if (name.isEmpty || _selectedCourse == null || formattedDeadline == null || _selectedUsers.isEmpty) {
-      _showError('All fields and at least one member are required.');
+    final time = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.now(),
+      builder: (ctx, child) => Theme(data: Theme.of(context), child: child!),
+    );
+    if (time == null) return;
+
+    setState(() {
+      _deadline = DateTime(date.year, date.month, date.day, time.hour, time.minute);
+    });
+  }
+
+  String? _validate() {
+    final db = MockDatabase();
+    final name = _nameController.text.trim();
+
+    if (name.isEmpty) return 'Please enter a project name.';
+    if (_selectedCourse == null || _selectedCourse!.isEmpty) {
+      return 'Please select a course.';
+    }
+    if (_deadline == null) return 'Please pick a deadline.';
+    if (_selectedUsers.isEmpty) return 'Please select at least one member.';
+
+    // Unique project name
+    final exists = db
+        .getAllProjects()
+        .any((p) => (p['name'] ?? '').toString().toLowerCase() == name.toLowerCase());
+    if (exists) return 'A project with this name already exists.';
+
+    return null;
+  }
+
+  Future<void> _confirmSubmitProject() async {
+    final error = _validate();
+    if (error != null) {
+      _showError(error);
       return;
     }
 
@@ -87,46 +155,52 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
         ),
         content: const Text('Are you sure you want to create this project?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(backgroundColor: AppColors.blueText),
+            onPressed: () => Navigator.pop(context, true),
             child: const Text('Confirm', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
 
-    if (confirmed == true) {
-      _submitProject();
-    }
+    if (confirmed == true) _submitProject();
   }
 
-  void _submitProject() {
-    final name = _nameController.text.trim();
+  void _submitProject() async {
     final db = MockDatabase();
     final currentUser = db.currentLoggedInUser ?? '';
-    final formattedDeadline = _deadline?.toIso8601String();
 
+    // Ensure teacher creator is included (common pattern you already had)
     if (!_selectedUsers.contains(currentUser)) {
       final role = db.getUserRole(currentUser);
-      if (role == 'teacher') {
-        _selectedUsers.add(currentUser);
-      }
+      if (role == 'teacher') _selectedUsers.add(currentUser);
     }
 
-    db.addProject({
-      'name': name,
-      'course': _selectedCourse!,
-      'startDate': DateTime.now().toIso8601String(),
-      'deadline': formattedDeadline!,
-      'members': _selectedUsers.join(','),
-    });
+    setState(() => _submitting = true);
 
-    Navigator.pop(context, true);
+    try {
+      // Save with fields used elsewhere (status, createdAt, tasks, etc.)
+      db.addProject({
+        'name': _nameController.text.trim(),
+        'course': _selectedCourse!,
+        'startDate': DateTime.now().toIso8601String(),
+        'deadline': _deadline!.toIso8601String(),
+        'status': 'On-track',
+        'createdAt': DateTime.now().toIso8601String(),
+        'leader': '', // will be set by AssignLeaderScreen
+        'members': _selectedUsers.join(','), // <-- FIX: store as comma-separated string
+        // 'tasks': '[]', // <-- OPTIONAL: only if you want a placeholder; otherwise omit
+      });
+
+      if (!mounted) return;
+      Navigator.pop(context, true); // signal success to the caller (bottom sheet opener)
+    } catch (e) {
+      _showError('Failed to create project: $e');
+    } finally {
+      if (mounted) setState(() => _submitting = false);
+    }
   }
 
   void _showError(String message) {
@@ -145,68 +219,36 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     );
   }
 
-  Future<void> _pickDeadline() async {
-    final pickedDate = await showDatePicker(
-      context: context,
-      initialDate: DateTime.now(),
-      firstDate: DateTime.now(),
-      lastDate: DateTime(2100),
-    );
-
-    if (pickedDate != null) {
-      final pickedTime = await showTimePicker(
-        context: context,
-        initialTime: TimeOfDay.now(),
-      );
-
-      if (pickedTime != null) {
-        final fullDateTime = DateTime(
-          pickedDate.year,
-          pickedDate.month,
-          pickedDate.day,
-          pickedTime.hour,
-          pickedTime.minute,
-        );
-
-        setState(() {
-          _deadline = fullDateTime;
-        });
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    // theme-aware colors so text is readable in dark mode
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final primaryText = Theme.of(context).textTheme.bodyLarge?.color ?? (isDark ? Colors.white : Colors.black);
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final primaryText = theme.textTheme.bodyLarge?.color ?? (isDark ? Colors.white : Colors.black);
     final inputFill = isDark ? Colors.grey[800] : Colors.blue[50];
 
     return Scaffold(
-      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,
         leading: IconButton(
-          icon: Icon(Icons.arrow_back, color: primaryText),
-          onPressed: () => Navigator.pop(context),
+          icon: Icon(Icons.close, color: primaryText),
+          onPressed: () => Navigator.pop(context, false),
         ),
         title: Text(
-          'Start Your Project',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            color: primaryText,
-          ),
+          'Start New Project',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: primaryText),
         ),
       ),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            _buildInputField(context, _nameController, 'Group Name'),
+            _buildInputField(context, _nameController, 'Project Name'),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
+              value: _selectedCourse,
               decoration: InputDecoration(
                 hintText: 'Select Course',
                 filled: true,
@@ -216,8 +258,6 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
                   borderSide: BorderSide.none,
                 ),
               ),
-              value: _selectedCourse,
-              style: TextStyle(color: primaryText),
               items: _availableCourses
                   .map((course) => DropdownMenuItem(
                         value: course,
@@ -227,14 +267,14 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
               onChanged: (value) => setState(() => _selectedCourse = value),
             ),
             const SizedBox(height: 16),
-            Text(
-              'Add Members to this Project:',
-              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: primaryText),
-            ),
+
+            Text('Add Members to this Project:',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: primaryText)),
             const SizedBox(height: 8),
+
             MultiSelectDialogField<String>(
               items: _userItems,
-              title: const Text("Select Members"),
+              title: const Text('Select Members'),
               selectedColor: AppColors.blueText,
               decoration: BoxDecoration(
                 color: inputFill,
@@ -242,24 +282,30 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
                 border: Border.all(color: Colors.transparent),
               ),
               buttonIcon: Icon(Icons.person_add, color: primaryText),
-              buttonText: Text(
-                "Select members to add",
-                style: GoogleFonts.poppins(color: primaryText),
-              ),
-              onConfirm: (values) {
-                setState(() => _selectedUsers = values);
-              },
+              buttonText: Text('Select members to add', style: GoogleFonts.poppins(color: primaryText)),
+              onConfirm: (values) => setState(() => _selectedUsers
+                ..clear()
+                ..addAll(values)),
               chipDisplay: MultiSelectChipDisplay(
-                items: _selectedUsers.map((e) {
-                  final role = _userList.firstWhere((u) => u['username'] == e)['role'];
-                  final label = role == 'teacher' ? '$e (teacher)' : e;
-                  return MultiSelectItem<String>(e, label);
+                items: _selectedUsers.map((username) {
+                  final m = _userList.firstWhere(
+                    (u) => u['username'] == username,
+                    orElse: () => <String, String>{'username': username, 'fullName': username, 'role': 'user'},
+                  );
+                  final isTeacher = m['role'] == 'teacher';
+                  final label = isTeacher
+                      ? '${m['fullName']} ($username) • teacher'
+                      : '${m['fullName']} ($username)';
+                  return MultiSelectItem<String>(username, label);
                 }).toList(),
                 onTap: (value) {
-                  setState(() => _selectedUsers.remove(value));
+                  setState(() {
+                    _selectedUsers.remove(value);
+                  });
                 },
               ),
             ),
+
             const SizedBox(height: 16),
             Row(
               children: [
@@ -267,31 +313,26 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
                 const SizedBox(width: 12),
                 Expanded(
                   child: Text(
-                    _deadline != null
-                        ? 'Deadline: ${_deadline!.toLocal().toString().substring(0, 16)}'
-                        : 'Pick Project Deadline',
+                    _deadline == null
+                        ? 'Pick Project Deadline'
+                        : 'Deadline: ${DateFormat('yyyy-MM-dd HH:mm').format(_deadline!.toLocal())}',
                     style: GoogleFonts.poppins(fontSize: 16, color: primaryText),
                   ),
                 ),
-                IconButton(
-                  icon: Icon(Icons.date_range, color: primaryText),
-                  onPressed: _pickDeadline,
-                ),
+                IconButton(icon: Icon(Icons.date_range, color: primaryText), onPressed: _pickDeadline),
               ],
             ),
+
             const SizedBox(height: 24),
             ElevatedButton(
-              onPressed: _confirmSubmitProject,
+              onPressed: _submitting ? null : _confirmSubmitProject,
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.blueText,
                 padding: const EdgeInsets.symmetric(vertical: 12),
               ),
               child: Text(
-                'CONFIRM',
-                style: GoogleFonts.poppins(
-                  color: Colors.white,
-                  fontWeight: FontWeight.bold,
-                ),
+                _submitting ? 'CREATING…' : 'CONFIRM',
+                style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold),
               ),
             ),
           ],
@@ -300,7 +341,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     );
   }
 
-  // NOTE: changed to accept BuildContext so we can use theme colors here.
+  // Themed text field helper
   Widget _buildInputField(BuildContext context, TextEditingController controller, String hintText) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final primaryText = Theme.of(context).textTheme.bodyLarge?.color ?? (isDark ? Colors.white : Colors.black);
@@ -311,7 +352,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       style: TextStyle(color: primaryText),
       decoration: InputDecoration(
         hintText: hintText,
-        hintStyle: TextStyle(color: primaryText?.withOpacity(0.6)),
+        hintStyle: TextStyle(color: primaryText.withOpacity(0.6)),
         filled: true,
         fillColor: inputFill,
         border: OutlineInputBorder(

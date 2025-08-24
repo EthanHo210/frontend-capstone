@@ -7,15 +7,26 @@ import 'assign_task_screen.dart';
 import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:convert';
+import 'course_teams_screen.dart';
 
 class ProjectStatusScreen extends StatefulWidget {
   final String projectName;
   final String courseName;
 
+  /// If true, render content-only (no Scaffold/AppBar) so it can live inside
+  /// MainDashboard/DashboardScaffold without duplicating chrome.
+  final bool embedded;
+
+  final VoidCallback? onOpenAssignTaskEmbedded;
+  final VoidCallback? onOpenAssignLeaderEmbedded; // <-- callback for embedded Assign Leader
+
   const ProjectStatusScreen({
     super.key,
     required this.projectName,
     required this.courseName,
+    this.embedded = false,
+    this.onOpenAssignTaskEmbedded,
+    this.onOpenAssignLeaderEmbedded,
   });
 
   @override
@@ -24,24 +35,38 @@ class ProjectStatusScreen extends StatefulWidget {
 
 class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
   final db = MockDatabase();
-  late Map<String, dynamic> project;
+  Map<String, dynamic> project = {};
   late String currentUsername;
   late String currentFullName;
   late String role;
-  late bool isLeader;
-  late List<Map<String, dynamic>> tasks;
-  late List<String> projectMembers;
+  bool isLeader = false;
+  List<Map<String, dynamic>> tasks = [];
+  List<String> projectMembers = [];
 
   @override
   void initState() {
     super.initState();
-    currentUsername = db.getUsernameByEmail(db.currentLoggedInUser ?? '') ?? db.currentLoggedInUser ?? '';
+    currentUsername =
+        db.getUsernameByEmail(db.currentLoggedInUser ?? '') ?? (db.currentLoggedInUser ?? '');
     currentFullName = db.getFullNameByUsername(currentUsername) ?? currentUsername;
-    role = db.getUserRole(currentUsername);
-    project = db.getAllProjects().firstWhere((p) => p['name'] == widget.projectName);
+
+    // Stay consistent with your other screens: getUserRole() is called with the email/currentLoggedInUser
+    role = db.getUserRole(db.currentLoggedInUser ?? '');
+
+    _loadProjectState();
+  }
+
+  void _loadProjectState() {
+    final all = db.getAllProjects();
+    project = all.firstWhere(
+      (p) => (p['name']?.toString() ?? '') == widget.projectName,
+      orElse: () => <String, dynamic>{},
+    );
+
     isLeader = db.getProjectLeader(widget.projectName) == currentUsername;
     tasks = db.getTasksForProject(widget.projectName);
     projectMembers = db.getProjectMembers(widget.projectName);
+    if (mounted) setState(() {});
   }
 
   double getCompletionPercentage() {
@@ -68,7 +93,9 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
           children: [
             TextField(
               controller: controllerWhy,
-              decoration: InputDecoration(labelText: 'Why do you ${vote ? "agree" : "disagree"} with this?'),
+              decoration: InputDecoration(
+                labelText: 'Why do you ${vote ? "agree" : "disagree"} with this?',
+              ),
             ),
             TextField(
               controller: controllerBetter,
@@ -82,18 +109,20 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
               final feedback =
                   '${controllerWhy.text.trim()}\nSuggestions: ${controllerBetter.text.trim()}';
               db.voteOnSubtask(widget.projectName, task['id'], subtaskIndex, currentUsername, vote, feedback);
+
               final subtasks = task['subtasks'] as List<dynamic>;
               final sub = subtasks[subtaskIndex];
               final votes = Map<String, bool>.from(sub['votes'] ?? {});
 
-              // compute eligible voters: project members excluding assignee and excluding admin/officer roles
+              // eligible voters: project members excluding assignee + excluding admin/officer roles
               final eligibleVoters = projectMembers.where((m) {
                 if (m == task['assignedTo']) return false;
                 final r = db.getUserRole(m);
                 return !(r == 'admin' || r == 'officer');
               }).toList();
 
-              final allEligibleVoted = eligibleVoters.isEmpty ? true : eligibleVoters.every((m) => votes.containsKey(m));
+              final allEligibleVoted =
+                  eligibleVoters.isEmpty ? true : eligibleVoters.every((m) => votes.containsKey(m));
               if (allEligibleVoted) db.finalizeVotes(widget.projectName, task['id'], subtaskIndex);
 
               setState(() {
@@ -126,9 +155,7 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                   final picked = await picker.pickImage(source: ImageSource.gallery);
                   if (picked != null) {
                     final bytes = await picked.readAsBytes();
-                    setModalState(() {
-                      imageBytes = bytes;
-                    });
+                    setModalState(() => imageBytes = bytes);
                   }
                 },
                 icon: const Icon(Icons.image),
@@ -155,14 +182,8 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                       title: const Text("Submit Subtask"),
                       content: const Text("Are you sure you want to submit this subtask for review?"),
                       actions: [
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, false),
-                          child: const Text("Cancel"),
-                        ),
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text("Yes"),
-                        ),
+                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text("Cancel")),
+                        TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text("Yes")),
                       ],
                     ),
                   );
@@ -204,14 +225,13 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
 
     final canEdit = ['admin', 'officer', 'teacher'].contains(role) || isLeader;
 
-    // NEW: check membership once per card
     final isProjectMember = projectMembers.contains(currentUsername);
-
     final bool currentIsAdminOrOfficer = role == 'admin' || role == 'officer';
 
-    // theme-aware text colors (so nested widgets adapt)
-    final localPrimary = Theme.of(context).textTheme.bodyLarge?.color ?? AppColors.blueText;
-    final localSecondary = Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
+    final localPrimary =
+        Theme.of(context).textTheme.bodyLarge?.color ?? AppColors.blueText;
+    final localSecondary =
+        Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
 
     return Card(
       margin: const EdgeInsets.symmetric(vertical: 8),
@@ -223,8 +243,12 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
             Row(
               children: [
                 Icon(
-                  subtasks.every((s) => s['status'] == 'Approved') ? Icons.check_circle : Icons.pending,
-                  color: subtasks.every((s) => s['status'] == 'Approved') ? Colors.green : Colors.orange,
+                  subtasks.every((s) => s['status'] == 'Approved')
+                      ? Icons.check_circle
+                      : Icons.pending,
+                  color: subtasks.every((s) => s['status'] == 'Approved')
+                      ? Colors.green
+                      : Colors.orange,
                 ),
                 const SizedBox(width: 8),
                 Text(
@@ -234,9 +258,9 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
               ],
             ),
             const SizedBox(height: 4),
-            // Assigned full name
             Text('Assigned to: $assignedFullName', style: TextStyle(color: localPrimary)),
             const SizedBox(height: 8),
+
             ...List.generate(subtasks.length, (i) {
               final sub = subtasks[i];
               final votes = Map<String, bool>.from(sub['votes'] ?? {});
@@ -247,13 +271,12 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
               final isAssignedToMe = task['assignedTo'] == currentUsername;
               final hasSubmitted = proof.isNotEmpty || comment.isNotEmpty;
 
-              // NEW: only members can vote/comment view (unless it's the voter or the assignee)
-              // only members who are NOT admin/officer can vote (and not the assignee)
-              final canVote = !isAssignedToMe
-                  && status == 'under_review'
-                  && !alreadyVoted
-                  && isProjectMember
-                  && !currentIsAdminOrOfficer;
+              // voting rules: only project members (not assignee), not admin/officer, and not already voted
+              final canVote = !isAssignedToMe &&
+                  status == 'under_review' &&
+                  !alreadyVoted &&
+                  isProjectMember &&
+                  !currentIsAdminOrOfficer;
 
               return Row(
                 children: [
@@ -279,27 +302,27 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                                   },
                                   child: Text(
                                     'Tap to view image proof',
-                                    style: TextStyle(decoration: TextDecoration.underline, color: localSecondary),
+                                    style: TextStyle(
+                                      decoration: TextDecoration.underline,
+                                      color: localSecondary,
+                                    ),
                                   ),
                                 ),
                               if (comment.isNotEmpty)
-                                Text('Comment: $comment', style: TextStyle(fontSize: 12, color: localSecondary)),
+                                Text('Comment: $comment',
+                                    style: TextStyle(fontSize: 12, color: localSecondary)),
 
-                              // COMMENTS: only show to voter OR assignee OR any project member
+                              // comments visible to voter OR assignee OR any project member (non-admin/officer)
                               if (sub['comments'] != null && sub['comments'] is Map)
                                 ...((Map<String, dynamic>.from(sub['comments'] as Map)).entries.map((entry) {
                                   final voter = entry.key.toString();
                                   final feedback = entry.value?.toString() ?? '';
-                                  final allowedToView = (voter == currentUsername) 
-                                    || isAssignedToMe 
-                                    || (projectMembers.contains(currentUsername) && !currentIsAdminOrOfficer);
+                                  final allowedToView = (voter == currentUsername) ||
+                                      isAssignedToMe ||
+                                      (projectMembers.contains(currentUsername) && !currentIsAdminOrOfficer);
 
-                                  // If not allowed, don't render the comment block at all
-                                  if (!allowedToView) {
-                                    return const SizedBox.shrink();
-                                  }
+                                  if (!allowedToView) return const SizedBox.shrink();
 
-                                  // Get full name (fallback to username)
                                   final fullName = db.getFullNameByUsername(voter) ?? voter;
 
                                   return Padding(
@@ -307,8 +330,10 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                                     child: Column(
                                       crossAxisAlignment: CrossAxisAlignment.start,
                                       children: [
-                                        Text("$fullName's comments", style: TextStyle(fontSize: 12, color: localSecondary)),
-
+                                        Text(
+                                          "$fullName's comments",
+                                          style: TextStyle(fontSize: 12, color: localSecondary),
+                                        ),
                                         TextButton(
                                           style: TextButton.styleFrom(
                                             padding: EdgeInsets.zero,
@@ -316,9 +341,8 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                                             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                                           ),
                                           onPressed: () async {
-                                            // If the voter themself -> allow edit
                                             if (voter == currentUsername) {
-                                              // Split into the two question fields if previously saved with "Suggestions:"
+                                              // allow edit of own comment
                                               String q1 = '';
                                               String q2 = '';
                                               final parts = feedback.split(RegExp(r'Suggestions:\s*', caseSensitive: false));
@@ -374,14 +398,21 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                                                     : <String, dynamic>{};
                                                 final currentVoteValue = (currentVoteMap[currentUsername] == true);
 
-                                                db.voteOnSubtask(widget.projectName, task['id'], i, currentUsername, currentVoteValue, newComment);
+                                                db.voteOnSubtask(
+                                                  widget.projectName,
+                                                  task['id'],
+                                                  i,
+                                                  currentUsername,
+                                                  currentVoteValue,
+                                                  newComment,
+                                                );
 
                                                 setState(() {
                                                   tasks = db.getTasksForProject(widget.projectName);
                                                 });
                                               }
                                             } else {
-                                              // read-only view for assignee or other project members
+                                              // read-only view
                                               String q1 = '';
                                               String q2 = '';
                                               final parts = feedback.split(RegExp(r'Suggestions:\s*', caseSensitive: false));
@@ -423,21 +454,16 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                     ),
                   ),
 
-                  // NEW: only allow voting if the current user is a project member (and not the assignee)
-                  if (canVote)
-                    Row(
-                      children: [
-                        IconButton(
-                          icon: const Icon(Icons.thumb_up, color: Colors.green),
-                          onPressed: () => showVoteCommentDialog(task, i, true),
-                        ),
-                        IconButton(
-                          icon: const Icon(Icons.thumb_down, color: Colors.red),
-                          onPressed: () => showVoteCommentDialog(task, i, false),
-                        ),
-                      ],
-                    )
-                  else if (isAssignedToMe && (status == 'Pending' || status == 'Rejected'))
+                  if (canVote) ...[
+                    IconButton(
+                      icon: const Icon(Icons.thumb_up, color: Colors.green),
+                      onPressed: () => showVoteCommentDialog(task, i, true),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.thumb_down, color: Colors.red),
+                      onPressed: () => showVoteCommentDialog(task, i, false),
+                    ),
+                  ] else if (isAssignedToMe && (status == 'Pending' || status == 'Rejected')) ...[
                     ElevatedButton(
                       onPressed: () => showSubmitDialog(task, i),
                       style: ElevatedButton.styleFrom(
@@ -445,8 +471,8 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                         foregroundColor: Colors.white,
                       ),
                       child: const Text('Confirm Finish'),
-                    )
-                  else
+                    ),
+                  ] else ...[
                     Text(
                       status == 'under_review' ? 'Under review. Please wait.' : status,
                       style: TextStyle(
@@ -458,9 +484,11 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                                 : Colors.orange,
                       ),
                     ),
+                  ],
                 ],
               );
             }),
+
             if (canEdit)
               Align(
                 alignment: Alignment.centerRight,
@@ -533,7 +561,8 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
             actions: [
               TextButton(
                 onPressed: () {
-                  final updatedTitles = controllers.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
+                  final updatedTitles =
+                      controllers.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
 
                   final rawExisting = task['subtasks'];
                   final existingSubtasks = rawExisting is List
@@ -543,31 +572,32 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                   final newSubtasks = updatedTitles.map((title) {
                     // Find existing subtask by title (case-insensitive)
                     final match = existingSubtasks.firstWhere(
-                      (sub) => sub['title'].toString().trim().toLowerCase() == title.trim().toLowerCase(),
+                      (sub) => sub['title'].toString().trim().toLowerCase() ==
+                          title.trim().toLowerCase(),
                       orElse: () => <String, dynamic>{},
                     );
 
                     // Preserve existing id if available, otherwise create one
-                    final id = (match is Map && match['id'] != null && match['id'].toString().isNotEmpty)
+                    final id = (match['id'] != null && match['id'].toString().isNotEmpty)
                         ? match['id'].toString()
                         : DateTime.now().microsecondsSinceEpoch.toString();
 
                     // Preserve fields when present, otherwise default
-                    final status = (match is Map && match['status'] != null) ? match['status'] : 'Pending';
-                    final proof = (match is Map && match['proof'] != null) ? match['proof'] : '';
-                    final comment = (match is Map && match['comment'] != null) ? match['comment'] : '';
+                    final status = (match['status'] != null) ? match['status'] : 'Pending';
+                    final proof = (match['proof'] != null) ? match['proof'] : '';
+                    final comment = (match['comment'] != null) ? match['comment'] : '';
 
                     // Normalize votes to Map<String,bool>
                     Map<String, bool> votesMap = {};
-                    if (match is Map && match['votes'] is Map) {
+                    if (match['votes'] is Map) {
                       (match['votes'] as Map).forEach((k, v) {
                         if (k != null) votesMap[k.toString()] = (v == true);
                       });
                     }
 
-                    // Preserve voter comments map (the one that was being lost)
+                    // Preserve voter comments map
                     Map<String, String> commentsMap = {};
-                    if (match is Map && match['comments'] is Map) {
+                    if (match['comments'] is Map) {
                       (match['comments'] as Map).forEach((k, v) {
                         if (k != null) commentsMap[k.toString()] = v?.toString() ?? '';
                       });
@@ -578,14 +608,13 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                       'title': title,
                       'status': status,
                       'proof': proof,
-                      'comment': comment,       // submitter's single comment (if any)
-                      'votes': votesMap,       // voters' boolean votes
-                      'comments': commentsMap, // voters' textual feedback (preserved!)
+                      'comment': comment,
+                      'votes': votesMap,
+                      'comments': commentsMap,
                     };
                   }).toList();
 
                   db.replaceSubtasks(widget.projectName, task['id'], newSubtasks);
-
                   Navigator.pop(context, true);
                 },
                 child: const Text("Save"),
@@ -597,35 +626,39 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
     ).then((value) => value ?? false);
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final completion = getCompletionPercentage();
+  Widget _buildContent(BuildContext context) {
+    // NEW: auto-embed if we’re already inside a Scaffold (e.g. DashboardScaffold)
+    final bool useEmbedded = widget.embedded || Scaffold.maybeOf(context) != null;
+    
+    // If the project wasn't found, fail gracefully.
+    if (project.isEmpty) {
+      final errorColor = Theme.of(context).colorScheme.error;
+      return Center(
+        child: Text(
+          'Project "${widget.projectName}" was not found.',
+          style: GoogleFonts.poppins(color: errorColor, fontWeight: FontWeight.w600),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
 
-    // Theme-aware primary and secondary text colors for good contrast in dark mode
+    final completion = getCompletionPercentage();
     final textColor = Theme.of(context).textTheme.titleLarge?.color
         ?? Theme.of(context).textTheme.bodyLarge?.color
         ?? AppColors.blueText;
     final secondaryColor = Theme.of(context).textTheme.bodyMedium?.color ?? Colors.grey;
 
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          'Project Status',
-          style: GoogleFonts.poppins(
-            fontWeight: FontWeight.bold,
-            fontSize: 22,
-            color: textColor,
-          ),
-        ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        iconTheme: IconThemeData(color: textColor),
-      ),
-      body: Padding(
+    return SafeArea(
+      top: !useEmbedded,
+      bottom: false,
+      child: Padding(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // No local header row in embedded mode (DashboardScaffold provides it).
+            // When standalone, the Scaffold's AppBar will show the title.
+
             Center(
               child: Text(
                 widget.projectName,
@@ -646,41 +679,51 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
               ),
             ),
             const SizedBox(height: 20),
+
             Text('Tasks:', style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
             const SizedBox(height: 10),
+
             if (['admin', 'officer', 'teacher'].contains(role))
               Center(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AssignLeaderScreen(projectName: widget.projectName),
-                      ),
-                    ).then((_) => setState(() {
-                          project = db.getAllProjects().firstWhere((p) => p['name'] == widget.projectName);
-                          isLeader = project['leader'] == currentUsername;
-                        }));
+                    if (useEmbedded && widget.onOpenAssignLeaderEmbedded != null) {
+                      // open the embedded Assign Leader page in MainDashboard
+                      widget.onOpenAssignLeaderEmbedded!();
+                    } else {
+                      // fallback to standalone route (kept for backward compatibility)
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AssignLeaderScreen(projectName: widget.projectName),
+                        ),
+                      ).then((_) => setState(_loadProjectState));
+                    }
                   },
                   icon: const Icon(Icons.star, color: Colors.white),
                   label: const Text("Assign Project Leader", style: TextStyle(color: Colors.white)),
                   style: ElevatedButton.styleFrom(backgroundColor: AppColors.blueText),
                 ),
               ),
+
             if (['admin', 'officer', 'teacher'].contains(role) || isLeader)
               Center(
                 child: ElevatedButton.icon(
                   onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => AssignTaskScreen(projectName: widget.projectName),
-                      ),
-                    ).then((_) {
-                      setState(() {
-                        tasks = db.getTasksForProject(widget.projectName);
-                      });
-                    });
+                    if (useEmbedded && widget.onOpenAssignTaskEmbedded != null) {
+                      // open the embedded Assign Task page in MainDashboard
+                      widget.onOpenAssignTaskEmbedded!();
+                    } else {
+                      // fallback to standalone route (kept for backward compatibility)
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => AssignTaskScreen(projectName: widget.projectName),
+                        ),
+                      ).then((_) => setState(() {
+                            tasks = db.getTasksForProject(widget.projectName);
+                          }));
+                    }
                   },
                   icon: const Icon(Icons.assignment, color: Colors.white),
                   label: const Text("Assign Task", style: TextStyle(color: Colors.white)),
@@ -691,16 +734,65 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                   ),
                 ),
               ),
+
+            const SizedBox(height: 8),
+
             Expanded(
               child: tasks.isEmpty
                   ? Center(child: Text('No tasks assigned yet.', style: TextStyle(color: secondaryColor)))
-                  : ListView(
-                      children: tasks.map(buildTaskCard).toList(),
-                    ),
+                  : ListView(children: tasks.map(buildTaskCard).toList()),
             ),
           ],
         ),
       ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final content = _buildContent(context);
+
+    // NEW: auto-embed if there’s an ancestor Scaffold
+    final bool useEmbedded = widget.embedded || Scaffold.maybeOf(context) != null;
+
+    if (useEmbedded) {
+      // Content-only: parent chrome (AppBar/BottomNav) is provided by DashboardScaffold.
+      return content;
+    }
+
+    // Standalone route: provide our own Scaffold + AppBar (backwards compatible).
+    return Scaffold(
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      appBar: AppBar(
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () {
+            if (Navigator.canPop(context)) {
+              Navigator.pop(context);
+            } else {
+              Navigator.pushReplacement(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => CourseTeamsScreen(selectedCourse: widget.courseName),
+                ),
+              );
+            }
+          },
+        ),
+        title: Text(
+          'Project Status',
+          style: GoogleFonts.poppins(
+            fontWeight: FontWeight.bold,
+            color: Theme.of(context).textTheme.titleLarge?.color
+                ?? Theme.of(context).textTheme.bodyMedium?.color
+                ?? AppColors.blueText,
+          ),
+        ),
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        iconTheme: IconThemeData(color: Theme.of(context).iconTheme.color),
+      ),
+      body: content,
     );
   }
 }
