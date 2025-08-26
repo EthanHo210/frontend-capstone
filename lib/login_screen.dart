@@ -38,8 +38,14 @@ class _LoginScreenState extends State<LoginScreen> {
     if (isAuthenticated) {
       Navigator.pushReplacement(
         context,
-        MaterialPageRoute(builder: (_) => const MainDashboard()),
+        MaterialPageRoute(
+          builder: (_) => MainDashboard(
+            isDarkMode: widget.isDarkMode,
+            onToggleTheme: widget.onToggleTheme, // same logic as Login’s button
+          ),
+        ),
       );
+
     } else {
       _showError('Invalid email or password.');
     }

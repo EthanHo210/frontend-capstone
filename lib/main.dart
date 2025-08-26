@@ -150,7 +150,6 @@ class _TogetherAppState extends State<TogetherApp> {
             );
           }
 
-
           case '/projectSchedule':
             final args = settings.arguments as Map<String, dynamic>;
             return MaterialPageRoute(
@@ -170,9 +169,12 @@ class _TogetherAppState extends State<TogetherApp> {
             );
 
           case '/dashboard':
-            // Always go to MainDashboard; role-specific admin/officer tools
-            // are surfaced inside it as embedded pages with shared chrome.
-            return MaterialPageRoute(builder: (_) => const MainDashboard());
+            return MaterialPageRoute(
+              builder: (_) => MainDashboard(
+                isDarkMode: _themeMode == ThemeMode.dark,
+                onToggleTheme: _toggleTheme,
+              ),
+            );
 
           case '/start_new_project':
             return MaterialPageRoute(builder: (_) => const StartNewProjectScreen());
@@ -233,7 +235,12 @@ class _TogetherAppState extends State<TogetherApp> {
             return MaterialPageRoute(builder: (_) => const UserLogsScreen());
 
           case '/main_dashboard':
-            return MaterialPageRoute(builder: (_) => const MainDashboard());
+            return MaterialPageRoute(
+              builder: (_) => MainDashboard(
+                isDarkMode: _themeMode == ThemeMode.dark,
+                onToggleTheme: _toggleTheme,
+              ),
+            );
 
           case '/manage_courses':
             return MaterialPageRoute(builder: (_) => const ManageCoursesScreen());

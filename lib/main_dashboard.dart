@@ -381,9 +381,10 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
           onCourseTap: _openCourseTeamsFor,
         ),
         trackingPageWidget,
+        
         SettingsScreen(
           isAdmin: true,
-          isDarkMode: widget.isDarkMode,
+          isDarkMode: Theme.of(context).brightness == Brightness.dark, // <-- use live theme
           onToggleTheme: widget.onToggleTheme,
           onOpenAbout: _openAboutEmbedded,
           onOpenMembers: _openMembersEmbedded,
@@ -434,14 +435,14 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
             onCourseTap: _openCourseTeamsFor,
           ),
           trackingPageWidget,
-          SettingsScreen(
-            isAdmin: false,
-            isDarkMode: widget.isDarkMode,
-            onToggleTheme: widget.onToggleTheme,
-            onOpenAbout: _openAboutEmbedded,
-            onOpenMembers: _openMembersEmbedded,
-            onOpenHelpCenter: _openHelpEmbedded,
-          ),
+         SettingsScreen(
+          isAdmin: false,
+          isDarkMode: Theme.of(context).brightness == Brightness.dark, // <-- use live theme
+          onToggleTheme: widget.onToggleTheme,
+          onOpenAbout: _openAboutEmbedded,
+          onOpenMembers: _openMembersEmbedded,
+          onOpenHelpCenter: _openHelpEmbedded,
+        ),
         ];
       } else {
       // Students / normal users
@@ -472,7 +473,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
         trackingPageWidget,
         SettingsScreen(
           isAdmin: false,
-          isDarkMode: widget.isDarkMode,
+          isDarkMode: Theme.of(context).brightness == Brightness.dark, // <-- use live theme
           onToggleTheme: widget.onToggleTheme,
           onOpenAbout: _openAboutEmbedded,
           onOpenMembers: _openMembersEmbedded,
