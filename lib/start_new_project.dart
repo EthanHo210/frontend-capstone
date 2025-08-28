@@ -170,18 +170,21 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
 
   void _submitProject() async {
     final db = MockDatabase();
-    final currentUser = db.currentLoggedInUser ?? '';
 
-    // Ensure teacher creator is included (common pattern you already had)
-    if (!_selectedUsers.contains(currentUser)) {
-      final role = db.getUserRole(currentUser);
-      if (role == 'teacher') _selectedUsers.add(currentUser);
-    }
+    // currentLoggedInUser can be username OR email → normalize to username
+    final id = db.currentLoggedInUser ?? '';
+    final currentUsername = db.getUsernameByEmail(id) ?? id; // falls back to id if already a username
 
     setState(() => _submitting = true);
 
     try {
-      // Save with fields used elsewhere (status, createdAt, tasks, etc.)
+      // Ensure teacher creator is included once (if they are a teacher)
+      final role = db.getUserRole(id); // accepts username or email
+      final members = <String>{
+        ..._selectedUsers, // de-dupe
+        if (role == 'teacher') currentUsername,
+      }.toList();
+
       db.addProject({
         'name': _nameController.text.trim(),
         'course': _selectedCourse!,
@@ -189,19 +192,22 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
         'deadline': _deadline!.toIso8601String(),
         'status': 'On-track',
         'createdAt': DateTime.now().toIso8601String(),
-        'leader': '', // will be set by AssignLeaderScreen
-        'members': _selectedUsers.join(','), // <-- FIX: store as comma-separated string
-        // 'tasks': '[]', // <-- OPTIONAL: only if you want a placeholder; otherwise omit
+        'leader': '',
+        'members': members.join(','), // DB expects CSV of usernames
       });
 
+      // NOTE: addProject() now triggers notifications for all members:
+      // "You have been added to <Course> - <Project>. Please open the app to check."
+
       if (!mounted) return;
-      Navigator.pop(context, true); // signal success to the caller (bottom sheet opener)
+      Navigator.pop(context, true);
     } catch (e) {
       _showError('Failed to create project: $e');
     } finally {
       if (mounted) setState(() => _submitting = false);
     }
   }
+
 
   void _showError(String message) {
     showDialog(

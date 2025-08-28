@@ -1,3 +1,5 @@
+// mock_database.dart
+import 'dart:async'; // <-- NEW
 import 'dart:convert';
 import 'package:collection/collection.dart';
 import 'package:crypto/crypto.dart';
@@ -6,18 +8,26 @@ import 'package:uuid/uuid.dart';
 class MockDatabase {
   static final MockDatabase _instance = MockDatabase._internal();
   factory MockDatabase() => _instance;
-  MockDatabase._internal();
+  MockDatabase._internal() {
+    // Default notifications: enabled for all seeded users
+    for (final u in _users) {
+      _notifEnabled[u['username'] as String] = true;
+    }
+  }
 
   final Uuid _uuid = Uuid();
 
+  // -----------------------------
+  // USERS (seed) – unchanged
+  // -----------------------------
   final List<Map<String, dynamic>> _users = [
     {
       'id': Uuid().v4(),
       'username': 'testuser1',
-      'email': 'user1@example.com',
+      'email': 'ethanho200017@yahoo.com',
       'password': sha256.convert(utf8.encode('password123')).toString(),
       'role': 'user',
-      'fullName': 'Alice Nguyen',
+      'fullName': 'Ethan Ho',
     },
     {
       'id': Uuid().v4(),
@@ -61,16 +71,94 @@ class MockDatabase {
     },
   ];
 
+  // -----------------------------
+  // NOTIFICATIONS (NEW)
+  // -----------------------------
+  // username -> notifications list
+  final Map<String, List<Map<String, dynamic>>> _notificationsByUser = {};
+  // username -> enabled?
+  final Map<String, bool> _notifEnabled = {};
+  // stream of { 'username': <u>, 'notification': <map> }
+  final StreamController<Map<String, dynamic>> _notifStream =
+      StreamController<Map<String, dynamic>>.broadcast();
 
-final Map<String, Map<String, String>> _userProjects = {};
-final List<Map<String, dynamic>> _projects = [];
-final List<String> _courses = [];
-String? _currentLoggedInUser;
-final String _adminPin = '1234';
+  /// Listen for new notifications in real time
+  Stream<Map<String, dynamic>> get notificationStream => _notifStream.stream;
 
+  /// Get notifications for a user (newest first)
+  List<Map<String, dynamic>> getNotifications(String username) {
+    final list = List<Map<String, dynamic>>.from(
+        _notificationsByUser[username] ?? const []);
+    list.sort((a, b) =>
+        (b['createdAt'] as String).compareTo(a['createdAt'] as String));
+    return list;
+  }
 
-final Map<String, List<Map<String, dynamic>>> _projectTasks = {};
-final Map<String, String> _projectLeaders = {};
+  int getUnreadNotificationCount(String username) =>
+      (_notificationsByUser[username] ?? const [])
+          .where((n) => n['read'] == false)
+          .length;
+
+  void markAllNotificationsRead(String username) {
+    final list = _notificationsByUser[username];
+    if (list == null) return;
+    for (final n in list) n['read'] = true;
+  }
+
+  void markNotificationRead(String username, String id) {
+    final list = _notificationsByUser[username];
+    if (list == null) return;
+    for (final n in list) {
+      if (n['id'] == id) {
+        n['read'] = true;
+        break;
+      }
+    }
+  }
+
+  bool isNotificationsEnabled(String username) =>
+      _notifEnabled[username] ?? true;
+
+  void setNotificationsEnabled(String username, bool enabled) {
+    _notifEnabled[username] = enabled;
+  }
+
+  void _pushNotification(
+    String username, {
+    required String title,
+    required String body,
+    required String type, // 'project_created'|'leader_assigned'|'task_assigned'|'proof_uploaded'|'proof_result'
+    String? payload, // e.g., projectName / taskId / etc.
+  }) {
+    if (!isNotificationsEnabled(username)) return;
+
+    final n = <String, dynamic>{
+      'id': _uuid.v4(),
+      'title': title,
+      'body': body,
+      'type': type,
+      'payload': payload,
+      'read': false,
+      'createdAt': DateTime.now().toIso8601String(),
+    };
+    final list = _notificationsByUser.putIfAbsent(username, () => []);
+    list.add(n);
+
+    // broadcast for UI badges / local toasts
+    _notifStream.add({'username': username, 'notification': n});
+  }
+
+  // -----------------------------
+  // PROJECTS / TASKS (yours)
+  // -----------------------------
+  final Map<String, Map<String, String>> _userProjects = {};
+  final List<Map<String, dynamic>> _projects = [];
+  final List<String> _courses = [];
+  String? _currentLoggedInUser;
+  final String _adminPin = '1234';
+
+  final Map<String, List<Map<String, dynamic>>> _projectTasks = {};
+  final Map<String, String> _projectLeaders = {};
 
   void assignLeader(String projectName, String username) {
     _projectLeaders[projectName] = username;
@@ -80,37 +168,58 @@ final Map<String, String> _projectLeaders = {};
         break;
       }
     }
+    // --- NOTIFY leader
+    _pushNotification(
+      username,
+      title: 'You are the leader',
+      body: 'You have been assigned as leader for "$projectName".',
+      type: 'leader_assigned',
+      payload: projectName,
+    );
   }
 
   String? getProjectLeader(String projectName) => _projectLeaders[projectName];
 
-  void addTaskToProject(String projectName, {
+  void addTaskToProject(
+    String projectName, {
     required String title,
     required String assignedTo,
     List<String>? subtasks,
   }) {
-      final task = {
-        'id': DateTime.now().millisecondsSinceEpoch.toString(),
-        'title': title,
-        'assignedTo': assignedTo,
-        'subtasks': subtasks?.map((s) => {
-          'id': DateTime.now().microsecondsSinceEpoch.toString(),
-          'title': s,
-          'status': 'Pending',
-          'votes': <String, bool>{},
-          'comments': <String, String>{},
-          'proof': '',
-          'submittedBy': null,
-        }).toList() ?? [],
-        'status': 'Pending',
-        'proof': '',
-        'votes': <String, bool>{},
-        'comments': <String, String>{},
-        'submittedBy': null,
-        'confirmed': false,
-      };
-      _projectTasks.putIfAbsent(projectName, () => []).add(task);
-    }
+    final task = {
+      'id': DateTime.now().millisecondsSinceEpoch.toString(),
+      'title': title,
+      'assignedTo': assignedTo,
+      'subtasks': subtasks
+              ?.map((s) => {
+                    'id': DateTime.now().microsecondsSinceEpoch.toString(),
+                    'title': s,
+                    'status': 'Pending',
+                    'votes': <String, bool>{},
+                    'comments': <String, String>{},
+                    'proof': '',
+                    'submittedBy': null,
+                  })
+              .toList() ??
+          [],
+      'status': 'Pending',
+      'proof': '',
+      'votes': <String, bool>{},
+      'comments': <String, String>{},
+      'submittedBy': null,
+      'confirmed': false,
+    };
+    _projectTasks.putIfAbsent(projectName, () => []).add(task);
+
+    // --- NOTIFY assignee
+    _pushNotification(
+      assignedTo,
+      title: 'Task assigned',
+      body: '"$title" in "$projectName" has been assigned to you.',
+      type: 'task_assigned',
+      payload: projectName,
+    );
+  }
 
   List<Map<String, dynamic>> getTasksForProject(String projectName) =>
       _projectTasks[projectName] ?? [];
@@ -124,12 +233,31 @@ final Map<String, String> _projectLeaders = {};
       task['status'] = 'awaiting_review';
       task['votes'] = <String, bool>{};
       task['comments'] = <String, String>{};
+
+      // --- NOTIFY reviewers (all members except assignee)
+      final allMembers = _projects
+              .firstWhere((p) => p['name'] == projectName, orElse: () => {})[
+          'members'] as List? ??
+          [];
+      final assignee = task['assignedTo'];
+      final reviewers =
+          allMembers.where((m) => m != assignee).cast<String>().toList();
+
+      for (final r in reviewers) {
+        _pushNotification(
+          r,
+          title: 'Task proof submitted',
+          body:
+              'Proof submitted for "${task['title']}" in "$projectName". Please review.',
+          type: 'proof_uploaded',
+          payload: taskId,
+        );
+      }
     }
   }
 
-  
-
-  void voteOnTask(String projectName, String taskId, String voter, bool agree, String comment) {
+  void voteOnTask(
+      String projectName, String taskId, String voter, bool agree, String comment) {
     final tasks = _projectTasks[projectName];
     if (tasks == null) return;
     final task = tasks.firstWhere((t) => t['id'] == taskId, orElse: () => {});
@@ -138,7 +266,9 @@ final Map<String, String> _projectLeaders = {};
       (task['comments'] as Map<String, String>)[voter] = comment;
 
       final allMembers = _projects
-        .firstWhere((p) => p['name'] == projectName, orElse: () => {})['members'] as List? ?? [];
+              .firstWhere((p) => p['name'] == projectName, orElse: () => {})[
+          'members'] as List? ??
+          [];
 
       final votes = task['votes'] as Map<String, bool>;
       if (votes.length >= (allMembers.length / 2).ceil()) {
@@ -152,7 +282,8 @@ final Map<String, String> _projectLeaders = {};
     }
   }
 
-  void voteOnSubtask(String projectName, String taskId, int subtaskIndex, String voter, bool agree, String comment) {
+  void voteOnSubtask(String projectName, String taskId, int subtaskIndex,
+      String voter, bool agree, String comment) {
     final tasks = _projectTasks[projectName];
     if (tasks == null) return;
 
@@ -165,8 +296,12 @@ final Map<String, String> _projectLeaders = {};
     final subtask = subtasks[subtaskIndex];
 
     // ensure maps exist and have correct typing
-    subtask['votes'] = (subtask['votes'] is Map) ? Map<String, bool>.from(subtask['votes'] as Map) : <String, bool>{};
-    subtask['comments'] = (subtask['comments'] is Map) ? Map<String, String>.from(subtask['comments'] as Map) : <String, String>{};
+    subtask['votes'] = (subtask['votes'] is Map)
+        ? Map<String, bool>.from(subtask['votes'] as Map)
+        : <String, bool>{};
+    subtask['comments'] = (subtask['comments'] is Map)
+        ? Map<String, String>.from(subtask['comments'] as Map)
+        : <String, String>{};
 
     // Record vote and comment
     (subtask['votes'] as Map<String, bool>)[voter] = agree;
@@ -174,20 +309,25 @@ final Map<String, String> _projectLeaders = {};
 
     // Get all project members
     final allMembers = _projects
-        .firstWhere((p) => p['name'] == projectName, orElse: () => {})['members'] as List? ?? [];
+            .firstWhere((p) => p['name'] == projectName, orElse: () => {})[
+        'members'] as List? ??
+        [];
 
     // Exclude the assignee from voting logic
     final assignee = task['assignedTo'];
-    final eligibleVoters = allMembers.where((m) => m != assignee).toList();
+    final eligibleVoters =
+        allMembers.where((m) => m != assignee).toList().cast<String>();
 
     final votes = subtask['votes'] as Map<String, bool>;
 
     // Wait until all eligible voters have voted
     if (votes.keys.toSet().containsAll(eligibleVoters)) {
-      final approvals = votes.entries.where((e) => eligibleVoters.contains(e.key) && e.value).length;
+      final approvals =
+          votes.entries.where((e) => eligibleVoters.contains(e.key) && e.value).length;
 
       // Approve if more than half of eligible voters voted "yes"
-      subtask['status'] = approvals > (eligibleVoters.length / 2) ? 'Approved' : 'Rejected';
+      subtask['status'] =
+          approvals > (eligibleVoters.length / 2) ? 'Approved' : 'Rejected';
     }
 
     if (subtask['comments'] == null || subtask['comments'] is! Map<String, String>) {
@@ -195,12 +335,12 @@ final Map<String, String> _projectLeaders = {};
     }
   }
 
-
   double calculateMainTaskProgress(Map<String, dynamic> task) {
     final subtasks = task['subtasks'] as List<dynamic>;
     if (subtasks.isEmpty) return 0;
 
-    final approvedCount = subtasks.where((s) => s['status'] == 'Approved').length;
+    final approvedCount =
+        subtasks.where((s) => s['status'] == 'Approved').length;
     return (approvedCount / subtasks.length) * 100;
   }
 
@@ -208,61 +348,107 @@ final Map<String, String> _projectLeaders = {};
     final tasks = _projectTasks[projectName];
     if (tasks == null) return;
 
-    final Map<String, dynamic> task = tasks.firstWhere(
+    final task = tasks.firstWhere(
       (t) => t['id'] == taskId,
-      orElse: () => <String, dynamic>{}, // empty map fallback
+      orElse: () => <String, dynamic>{},
     );
-
     if (task.isEmpty) return;
 
-    final existingSubtasks = task['subtasks'] as List<dynamic>? ?? [];
+    final existing = (task['subtasks'] as List?)
+            ?.cast<Map<String, dynamic>>() ??
+        <Map<String, dynamic>>[];
 
     final updatedSubtasks = <Map<String, dynamic>>[];
+    final addedTitles = <String>[];
 
-    for (var title in updatedTitles) {
-      final Map<String, dynamic>? existing = existingSubtasks.firstWhere(
-        (s) => s['title'] == title,
-        orElse: () => null,
+    for (final raw in updatedTitles) {
+      final t = raw.trim();
+      if (t.isEmpty) continue;
+
+      final match = existing.firstWhere(
+        (s) => (s['title'] ?? '').toString().trim().toLowerCase() ==
+                t.toLowerCase(),
+        orElse: () => <String, dynamic>{},
       );
 
-      if (existing != null) {
-        updatedSubtasks.add(existing);
+      if (match.isNotEmpty) {
+        updatedSubtasks.add(match);
       } else {
         updatedSubtasks.add({
           'id': DateTime.now().microsecondsSinceEpoch.toString(),
-          'title': title,
+          'title': t,
           'status': 'Pending',
           'votes': <String, bool>{},
           'comments': <String, String>{},
           'proof': '',
           'submittedBy': null,
         });
+        addedTitles.add(t);
       }
     }
 
     task['subtasks'] = updatedSubtasks;
+
+    // 🔔 Notify assignee only when NEW subtasks were added
+    if (addedTitles.isNotEmpty) {
+      final assignedTo = (task['assignedTo'] ?? '').toString();
+      final course = (_projects.firstWhere(
+        (p) => p['name'] == projectName,
+        orElse: () => {},
+      )['course'] ?? 'N/A').toString();
+
+      _pushNotification(
+        assignedTo,
+        title: 'New subtasks assigned',
+        body: 'You have been given tasks in $course - $projectName. '
+              'Please open the app to check.',
+        type: 'task_assigned',
+        payload: projectName,
+      );
+    }
   }
 
+  void submitSubtaskProof(String projectName, String taskId, int subtaskIndex,
+      String user, String comment, String imageUrl) {
+    final tasks = _projectTasks[projectName];
+    if (tasks == null) return;
 
+    final task = tasks.firstWhereOrNull((t) => t['id'] == taskId);
+    if (task == null) return;
 
+    final subtasks = task['subtasks'] as List<dynamic>;
+    if (subtaskIndex < 0 || subtaskIndex >= subtasks.length) return;
 
-  void submitSubtaskProof(String projectName, String taskId, int subtaskIndex, String user, String comment, String imageUrl) {
-  final tasks = _projectTasks[projectName];
-  if (tasks == null) return;
+    final subtask = subtasks[subtaskIndex];
+    subtask['proof'] = imageUrl;
+    subtask['comment'] = comment;
+    subtask['status'] = 'under_review';
+    subtask['votes'] = <String, bool>{};
+    subtask['comments'] = <String, String>{};
+    subtask['submittedBy'] = user; // <-- track submitter
 
-  final task = tasks.firstWhereOrNull((t) => t['id'] == taskId);
-  if (task == null) return;
+    // --- NOTIFY reviewers (all members except submitter & assignee)
+    final allMembers =
+        _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {})['members']
+                as List? ??
+            [];
+    final assignee = task['assignedTo'];
+    final reviewers = allMembers
+        .where((m) => m != user && m != assignee)
+        .cast<String>()
+        .toList();
 
-  final subtasks = task['subtasks'] as List<dynamic>;
-  if (subtaskIndex < 0 || subtaskIndex >= subtasks.length) return;
-
-  final subtask = subtasks[subtaskIndex];
-  subtask['proof'] = imageUrl;
-  subtask['comment'] = comment;
-  subtask['status'] = 'under_review';
-  subtask['votes'] = <String, bool>{};
-  subtask['comments'] = <String, String>{};
-}
+    final subtaskTitle = (subtask['title'] ?? '').toString();
+    for (final r in reviewers) {
+      _pushNotification(
+        r,
+        title: 'Proof uploaded',
+        body: '$user submitted proof for "$subtaskTitle" in "$projectName".',
+        type: 'proof_uploaded',
+        payload: taskId,
+      );
+    }
+  }
 
   void finalizeVotes(String projectName, String taskId, int subtaskIndex) {
     final tasks = _projectTasks[projectName];
@@ -284,9 +470,26 @@ final Map<String, String> _projectLeaders = {};
       subtask['status'] = 'Rejected';
       subtask['votes'] = {}; // allow retry
     }
+
+    // --- NOTIFY submitter about result
+    final submitter = (subtask['submittedBy'] ?? '').toString();
+    if (submitter.isNotEmpty) {
+      final subtaskTitle = (subtask['title'] ?? '').toString();
+      _pushNotification(
+        submitter,
+        title: subtask['status'] == 'Approved'
+            ? 'Proof approved'
+            : 'Proof rejected',
+        body:
+            '"$subtaskTitle" in "$projectName" was ${subtask['status'].toString().toLowerCase()}.',
+        type: 'proof_result',
+        payload: taskId,
+      );
+    }
   }
 
-  void replaceSubtasks(String projectName, String taskId, List<Map<String, dynamic>> newSubtasks) {
+  void replaceSubtasks(
+      String projectName, String taskId, List<Map<String, dynamic>> newSubtasks) {
     final tasks = _projectTasks[projectName];
     if (tasks != null) {
       final index = tasks.indexWhere((t) => t['id'] == taskId);
@@ -296,16 +499,16 @@ final Map<String, String> _projectLeaders = {};
     }
   }
 
-
   List<String> getProjectMembers(String projectName) {
-    final project = _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {});
+    final project =
+        _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {});
     return List<String>.from(project['members'] ?? []);
   }
 
-  
   void addProject(Map<String, String> projectData) {
     final status = calculateStatus(projectData['deadline']!, 0);
-    final members = projectData['members']!.split(',').map((e) => e.trim()).toList();
+    final members =
+        projectData['members']!.split(',').map((e) => e.trim()).toList();
 
     _projects.add({
       'id': _uuid.v4(),
@@ -317,7 +520,9 @@ final Map<String, String> _projectLeaders = {};
       'course': projectData['course'] ?? 'N/A',
     });
 
-    final username = getUsernameByEmail(_currentLoggedInUser ?? '') ?? _currentLoggedInUser;
+    // Set project info for the creator (unchanged)
+    final username =
+        getUsernameByEmail(_currentLoggedInUser ?? '') ?? _currentLoggedInUser;
     if (username != null) {
       _userProjects[username] = {
         'project': projectData['name']!,
@@ -327,9 +532,20 @@ final Map<String, String> _projectLeaders = {};
         'deadline': projectData['deadline'] ?? '',
       };
     }
+
+    // --- NOTIFY all members they were added
+    final course = projectData['course'] ?? 'N/A';
+    for (final m in members) {
+      _pushNotification(
+        m,
+        title: 'New project',
+        body: '"${projectData['name']}" ($course) has been created and you were added.',
+        type: 'project_created',
+        payload: projectData['name'],
+      );
+    }
   }
 
-  
   List<Map<String, dynamic>> getAllProjects() => _projects;
 
   List<Map<String, dynamic>> getProjectsForCurrentUser() {
@@ -358,8 +574,8 @@ final Map<String, String> _projectLeaders = {};
     );
   }
 
-
-  void setProjectInfoForUser(String usernameOrEmail, Map<String, dynamic> projectInfo) {
+  void setProjectInfoForUser(
+      String usernameOrEmail, Map<String, dynamic> projectInfo) {
     String? username = usernameOrEmail;
     for (var user in _users) {
       if (user['email'] == usernameOrEmail) {
@@ -401,7 +617,8 @@ final Map<String, String> _projectLeaders = {};
       final matchPlain = stored == password;
       final matchHashed = stored == hashedPassword;
 
-      if ((user['username'] == usernameOrEmail || user['email'] == usernameOrEmail) &&
+      if ((user['username'] == usernameOrEmail ||
+              user['email'] == usernameOrEmail) &&
           (matchPlain || matchHashed)) {
         _currentLoggedInUser = usernameOrEmail;
         return true;
@@ -410,7 +627,8 @@ final Map<String, String> _projectLeaders = {};
     return false;
   }
 
-  void registerUserWithRole(String username, String email, String rawPassword, String role) {
+  void registerUserWithRole(
+      String username, String email, String rawPassword, String role) {
     if (isUsernameExists(username) || isEmailExists(email)) return;
 
     final hashedPassword = sha256.convert(utf8.encode(rawPassword)).toString();
@@ -431,25 +649,37 @@ final Map<String, String> _projectLeaders = {};
       'course': 'N/A',
       'deadline': '',
     };
+
+    // default notifications ON for new users
+    _notifEnabled[username] = true;
   }
 
   void registerUser(String username, String email, String password) {
     registerUserWithRole(username, email, password, 'user');
   }
 
-  void updateUser(String oldUsername, String email, String rawPassword, String role, {String? newUsername}) {
+  void updateUser(String oldUsername, String email, String rawPassword, String role,
+      {String? newUsername}) {
     for (var user in _users) {
       if (user['username'] == oldUsername && oldUsername != 'admin') {
-        if (newUsername != null && newUsername != oldUsername && !isUsernameExists(newUsername)) {
+        if (newUsername != null &&
+            newUsername != oldUsername &&
+            !isUsernameExists(newUsername)) {
           if (_userProjects.containsKey(oldUsername)) {
             _userProjects[newUsername] = _userProjects.remove(oldUsername)!;
           }
           for (var project in _projects) {
             if (project['members'] is List) {
-              project['members'] = (project['members'] as List).map((m) => m == oldUsername ? newUsername : m).toList();
+              project['members'] = (project['members'] as List)
+                  .map((m) => m == oldUsername ? newUsername : m)
+                  .toList();
             }
           }
           user['username'] = newUsername;
+          // move notif settings + inbox
+          _notifEnabled[newUsername] = _notifEnabled.remove(oldUsername) ?? true;
+          _notificationsByUser[newUsername] =
+              _notificationsByUser.remove(oldUsername) ?? [];
           if (_currentLoggedInUser == oldUsername) {
             _currentLoggedInUser = newUsername;
           }
@@ -457,13 +687,13 @@ final Map<String, String> _projectLeaders = {};
 
         user['email'] = email;
         final isHashed = rawPassword.length == 64 && !rawPassword.contains(' ');
-        user['password'] = isHashed ? rawPassword : sha256.convert(utf8.encode(rawPassword)).toString();
+        user['password'] =
+            isHashed ? rawPassword : sha256.convert(utf8.encode(rawPassword)).toString();
         user['role'] = role;
         break;
       }
     }
   }
-
 
   Map<String, dynamic>? getUserByEmail(String email) {
     try {
@@ -472,7 +702,6 @@ final Map<String, String> _projectLeaders = {};
       return null;
     }
   }
-
 
   void addUser(Map<String, dynamic> user) {
     final email = user['email'];
@@ -498,20 +727,29 @@ final Map<String, String> _projectLeaders = {};
       'course': 'N/A',
       'deadline': '',
     };
+
+    _notifEnabled[username] = true; // default ON
   }
 
+  bool isUsernameExists(String username) =>
+      _users.any((u) => u['username'] == username);
+  bool isEmailExists(String email) =>
+      _users.any((u) => u['email'] == email);
 
-  bool isUsernameExists(String username) => _users.any((u) => u['username'] == username);
-  bool isEmailExists(String email) => _users.any((u) => u['email'] == email);
+  String? getUsernameByEmail(String email) =>
+      _users.firstWhere((u) => u['email'] == email, orElse: () => {})['username'];
+  String? getEmailByUsername(String username) =>
+      _users.firstWhere((u) => u['username'] == username, orElse: () => {})['email'];
+  String? getUserNameById(String id) =>
+      _users.firstWhere((u) => u['username'] == id, orElse: () => {})['username'];
+  String? getFullNameByEmail(String email) =>
+      _users.firstWhere((u) => u['email'] == email, orElse: () => {})['fullName'];
+  String? getFullNameByUsername(String username) =>
+      _users.firstWhere((u) => u['username'] == username, orElse: () => {})['fullName'];
 
-  String? getUsernameByEmail(String email) => _users.firstWhere((u) => u['email'] == email, orElse: () => {})['username'];
-  String? getEmailByUsername(String username) => _users.firstWhere((u) => u['username'] == username, orElse: () => {})['email'];
-  String? getUserNameById(String id) => _users.firstWhere((u) => u['username'] == id, orElse: () => {})['username'];
-  String? getFullNameByEmail(String email) => _users.firstWhere((u) => u['email'] == email, orElse: () => {})['fullName'];
-  String? getFullNameByUsername(String username) => _users.firstWhere((u) => u['username'] == username, orElse: () => {})['fullName'];
-
-  String getUserRole(String id) =>
-      _users.firstWhere((u) => u['username'] == id || u['email'] == id, orElse: () => {'role': 'user'})['role'];
+  String getUserRole(String id) => _users
+      .firstWhere((u) => u['username'] == id || u['email'] == id,
+          orElse: () => {'role': 'user'})['role'];
 
   bool isAdmin(String id) => getUserRole(id).toLowerCase() == 'admin';
   bool isTeacher(String id) => getUserRole(id).toLowerCase() == 'teacher';
@@ -525,7 +763,14 @@ final Map<String, String> _projectLeaders = {};
   bool updateUsername(String newUsername) {
     if (_currentLoggedInUser == null) return false;
     for (var user in _users) {
-      if (user['username'] == _currentLoggedInUser || user['email'] == _currentLoggedInUser) {
+      if (user['username'] == _currentLoggedInUser ||
+          user['email'] == _currentLoggedInUser) {
+        // move settings + inbox
+        _notifEnabled[newUsername] =
+            _notifEnabled.remove(user['username']) ?? true;
+        _notificationsByUser[newUsername] =
+            _notificationsByUser.remove(user['username']) ?? [];
+
         user['username'] = newUsername;
         _currentLoggedInUser = newUsername;
         return true;
@@ -537,7 +782,8 @@ final Map<String, String> _projectLeaders = {};
   bool updateEmail(String newEmail) {
     if (_currentLoggedInUser == null) return false;
     for (var user in _users) {
-      if (user['username'] == _currentLoggedInUser || user['email'] == _currentLoggedInUser) {
+      if (user['username'] == _currentLoggedInUser ||
+          user['email'] == _currentLoggedInUser) {
         user['email'] = newEmail;
         _currentLoggedInUser = newEmail;
         return true;
@@ -550,7 +796,8 @@ final Map<String, String> _projectLeaders = {};
     if (_currentLoggedInUser == null) return false;
     final hashedPassword = sha256.convert(utf8.encode(newPassword)).toString();
     for (var user in _users) {
-      if (user['username'] == _currentLoggedInUser || user['email'] == _currentLoggedInUser) {
+      if (user['username'] == _currentLoggedInUser ||
+          user['email'] == _currentLoggedInUser) {
         user['password'] = hashedPassword;
         return true;
       }
@@ -561,6 +808,8 @@ final Map<String, String> _projectLeaders = {};
   void deleteUser(String username) {
     if (username == 'admin') return;
     _users.removeWhere((u) => u['username'] == username);
+    _notificationsByUser.remove(username);
+    _notifEnabled.remove(username);
   }
 
   List<String> getAllCourses() => List.from(_courses);
@@ -575,66 +824,74 @@ final Map<String, String> _projectLeaders = {};
     _courses.remove(courseName.trim());
   }
 
-  // Add this helper to completely remove a project and its related data
-void deleteProject(String projectName) {
-  // find project
-  final index = _projects.indexWhere((p) => p['name'] == projectName);
-  if (index == -1) return;
+  // Completely remove a project and related data
+  void deleteProject(String projectName) {
+    final index = _projects.indexWhere((p) => p['name'] == projectName);
+    if (index == -1) return;
 
-  final project = _projects[index];
-  // Remove tasks for that project
-  _projectTasks.remove(projectName);
+    final project = _projects[index];
+    _projectTasks.remove(projectName);
+    _projectLeaders.remove(projectName);
 
-  // Remove leader entry
-  _projectLeaders.remove(projectName);
-
-  // Update userProject entries for project members (set to N/A if they pointed to this project)
-  final members = List<String>.from(project['members'] ?? []);
-  for (final member in members) {
-    if (_userProjects.containsKey(member) && _userProjects[member]?['project'] == projectName) {
-      _userProjects[member] = {
-        'project': 'N/A',
-        'contribution': '0%',
-        'rank': 'Unranked',
-        'course': 'N/A',
-        'deadline': '',
-      };
+    final members = List<String>.from(project['members'] ?? []);
+    for (final member in members) {
+      if (_userProjects.containsKey(member) &&
+          _userProjects[member]?['project'] == projectName) {
+        _userProjects[member] = {
+          'project': 'N/A',
+          'contribution': '0%',
+          'rank': 'Unranked',
+          'course': 'N/A',
+          'deadline': '',
+        };
+      }
     }
+    _projects.removeAt(index);
   }
 
-  // Remove the project from the master list
-  _projects.removeAt(index);
-}
-
-// Replace your current deleteCourse with this implementation:
+  // Replace your current deleteCourse with this implementation:
   void deleteCourse(String courseName) {
-    // Remove from courses list first
     _courses.remove(courseName);
 
-    // Find project names that belong to this course
     final projectsToDelete = _projects
         .where((p) => p['course'] == courseName)
         .map((p) => p['name']?.toString() ?? '')
         .where((name) => name.isNotEmpty)
         .toList();
 
-    // Delete each project fully (tasks, leader, user project info)
     for (final projectName in projectsToDelete) {
       deleteProject(projectName);
     }
 
-    // Also clear any userProject entries that referenced this course (defensive)
     for (final key in _userProjects.keys.toList()) {
       if (_userProjects[key]?['course'] == courseName) {
         _userProjects[key]!['course'] = 'N/A';
-        if (_userProjects[key]?['project'] == null || _userProjects[key]!['project'] == courseName) {
-          // if the user's project referenced a deleted project, set to N/A
+        if (_userProjects[key]?['project'] == null ||
+            _userProjects[key]!['project'] == courseName) {
           _userProjects[key]!['project'] = 'N/A';
           _userProjects[key]!['contribution'] = '0%';
           _userProjects[key]!['rank'] = 'Unranked';
           _userProjects[key]!['deadline'] = '';
         }
       }
+    }
+  }
+
+  void notifyProjectMembers(String projectName, {
+    required String title,
+    required String body,
+    String type = 'system',
+    String? payload,
+  }) {
+    final members = getProjectMembers(projectName);
+    for (final m in members) {
+      _pushNotification( // this should be your existing internal method that emits to notificationStream
+        m,
+        title: title,
+        body: body,
+        type: type,
+        payload: payload ?? projectName,
+      );
     }
   }
 

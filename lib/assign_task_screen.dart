@@ -34,7 +34,10 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
     // Safe project lookup and robust members parsing (String or List)
     final all = db.getAllProjects();
-    final project = all.firstWhere((p) => p['name'] == widget.projectName, orElse: () => <String, dynamic>{});
+    final project = all.firstWhere(
+      (p) => p['name'] == widget.projectName,
+      orElse: () => <String, dynamic>{},
+    );
 
     if (project.isNotEmpty && project.containsKey('members')) {
       final raw = project['members'];
@@ -60,32 +63,75 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
   }
 
   void _submitTask() {
-    if ((_formKey.currentState?.validate() ?? false)) {
-      if (subtasks.isEmpty) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please add at least one subtask.')));
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+
+    if (members.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('No eligible members to assign this task.')),
+      );
+      return;
+    }
+
+    if (_assignedTo == null || _assignedTo!.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a member to assign.')),
+      );
+      return;
+    }
+
+    if (subtasks.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please add at least one subtask.')),
+      );
+      return;
+    }
+
+    _formKey.currentState?.save();
+
+    try {
+      final assigneeUsername = _assignedTo!.trim();
+
+      // same singleton db as the rest of the app
+      db.addTaskToProject(
+        widget.projectName,
+        title: (_taskTitle ?? '').trim(),
+        assignedTo: assigneeUsername,
+        subtasks: List<String>.from(subtasks),
+      );
+
+      // ✅ Embedded: tell the parent to switch back to Project Status.
+      if (widget.embedded) {
+        widget.onCreated?.call(true);
+        // Also close if this screen was pushed on a nested Navigator (no-op if none).
+        Navigator.maybePop(context);
         return;
       }
 
-      _formKey.currentState?.save();
-
-      try {
-        db.addTaskToProject(
-          widget.projectName,
-          title: _taskTitle!,
-          assignedTo: _assignedTo!,
-          subtasks: subtasks,
-        );
-
-        // If embedded: call callback + show snack and DO NOT pop the outer scaffold.
-        if (widget.embedded) {
-          widget.onCreated?.call(true);
-          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Task created')));
-        } else {
-          Navigator.pop(context, true);
-        }
-      } catch (e) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to create task: $e')));
+      // ✅ Standalone: just pop back (triggers didPopNext on ProjectStatus)
+      if (Navigator.canPop(context)) {
+        Navigator.pop(context, true);
+        return;
       }
+
+      // Ultra-rare fallback for standalone without a back stack
+      final course = (db.getAllProjects()
+                .firstWhere((p) => p['name'] == widget.projectName, orElse: () => const {})['course']
+              ?? 'N/A')
+          .toString();
+
+      Navigator.pushReplacementNamed(
+        context,
+        '/projectStatus',
+        arguments: {
+          'projectName': widget.projectName,
+          'courseName': course,
+          'embedded': false,
+        },
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to create task: $e')),
+      );
     }
   }
 
@@ -96,7 +142,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
         subtasks.add(text);
         _subtaskController.clear();
       });
-      FocusScope.of(context).requestFocus(FocusNode());
+      FocusScope.of(context).unfocus();
     }
   }
 
@@ -108,7 +154,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
   InputDecoration _buildInputDecoration(String label, BuildContext context) {
     final theme = Theme.of(context);
-    final fill = theme.brightness == Brightness.dark ? Colors.grey[800] : Colors.blue[50];
+    final fill =
+        theme.brightness == Brightness.dark ? Colors.grey[800] : Colors.blue[50];
 
     return InputDecoration(
       labelText: label,
@@ -117,7 +164,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide.none,
       ),
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       filled: true,
       fillColor: fill,
     );
@@ -135,7 +183,8 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
             TextFormField(
               decoration: _buildInputDecoration('Task Title', context),
               style: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
-              validator: (value) => value == null || value.isEmpty ? 'Enter task title' : null,
+              validator: (value) =>
+                  value == null || value.isEmpty ? 'Enter task title' : null,
               onSaved: (value) => _taskTitle = value?.trim(),
             ),
             const SizedBox(height: 20),
@@ -154,7 +203,10 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
                   final name = db.getUserByUsername(username)?['fullName'] ?? username;
                   return DropdownMenuItem(
                     value: username,
-                    child: Text(name, style: GoogleFonts.poppins(color: theme.colorScheme.onSurface)),
+                    child: Text(
+                      name,
+                      style: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
+                    ),
                   );
                 }).toList(),
                 validator: (value) => value == null ? 'Select a member' : null,
@@ -165,7 +217,13 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
               const SizedBox(height: 30),
             ],
 
-            Text('Add Subtasks:', style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: theme.colorScheme.onSurface)),
+            Text(
+              'Add Subtasks:',
+              style: GoogleFonts.poppins(
+                fontWeight: FontWeight.bold,
+                color: theme.colorScheme.onSurface,
+              ),
+            ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -187,18 +245,22 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
             ),
             const SizedBox(height: 10),
 
-            if (subtasks.isNotEmpty) ...subtasks.asMap().entries.map((entry) {
-              final idx = entry.key;
-              final text = entry.value;
-              return ListTile(
-                title: Text(text, style: GoogleFonts.poppins(color: theme.colorScheme.onSurface)),
-                trailing: IconButton(
-                  icon: Icon(Icons.delete, color: theme.colorScheme.error),
-                  onPressed: () => _removeSubtask(idx),
-                  tooltip: 'Remove subtask',
-                ),
-              );
-            }).toList(),
+            if (subtasks.isNotEmpty)
+              ...subtasks.asMap().entries.map((entry) {
+                final idx = entry.key;
+                final text = entry.value;
+                return ListTile(
+                  title: Text(
+                    text,
+                    style: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
+                  ),
+                  trailing: IconButton(
+                    icon: Icon(Icons.delete, color: theme.colorScheme.error),
+                    onPressed: () => _removeSubtask(idx),
+                    tooltip: 'Remove subtask',
+                  ),
+                );
+              }).toList(),
 
             const SizedBox(height: 30),
             SizedBox(
@@ -232,11 +294,9 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     final content = _buildContent(context);
 
     if (widget.embedded) {
-      // content-only; keep parent chrome; avoid extra paddings
       return SafeArea(top: false, bottom: false, child: content);
     }
 
-    // standalone route
     final theme = Theme.of(context);
     return Scaffold(
       appBar: AppBar(
@@ -255,5 +315,4 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       body: content,
     );
   }
-
 }

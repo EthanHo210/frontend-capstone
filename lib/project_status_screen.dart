@@ -8,10 +8,12 @@ import 'package:image_picker/image_picker.dart';
 import 'dart:typed_data';
 import 'dart:convert';
 import 'course_teams_screen.dart';
+import 'route_observer.dart';
 
 class ProjectStatusScreen extends StatefulWidget {
   final String projectName;
   final String courseName;
+  final int refreshTick;
 
   /// If true, render content-only (no Scaffold/AppBar) so it can live inside
   /// MainDashboard/DashboardScaffold without duplicating chrome.
@@ -27,13 +29,14 @@ class ProjectStatusScreen extends StatefulWidget {
     this.embedded = false,
     this.onOpenAssignTaskEmbedded,
     this.onOpenAssignLeaderEmbedded,
+    this.refreshTick = 0,
   });
 
   @override
   State<ProjectStatusScreen> createState() => _ProjectStatusScreenState();
 }
 
-class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
+class _ProjectStatusScreenState extends State<ProjectStatusScreen> with RouteAware {
   final db = MockDatabase();
   Map<String, dynamic> project = {};
   late String currentUsername;
@@ -42,6 +45,38 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
   bool isLeader = false;
   List<Map<String, dynamic>> tasks = [];
   List<String> projectMembers = [];
+
+  @override
+  void didUpdateWidget(covariant ProjectStatusScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.projectName != widget.projectName ||
+        oldWidget.courseName  != widget.courseName  ||
+        oldWidget.refreshTick != widget.refreshTick) {
+      _loadProjectState();
+    }
+  }
+  
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  @override
+  void didPopNext() {
+    // Called when coming back from AssignTask / AssignLeader
+    _loadProjectState();
+  }
+
 
   @override
   void initState() {
@@ -285,7 +320,7 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(sub['title'], style: TextStyle(color: localPrimary)),
+                        Text((sub['title'] ?? '').toString(), style: TextStyle(color: localPrimary)),
                         if (hasSubmitted)
                           Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -293,21 +328,24 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                               if (proof.isNotEmpty)
                                 GestureDetector(
                                   onTap: () {
-                                    showDialog(
-                                      context: context,
-                                      builder: (_) => AlertDialog(
-                                        content: Image.memory(base64Decode(proof)),
-                                      ),
-                                    );
+                                    try {
+                                      final img = base64Decode(proof);
+                                      showDialog(
+                                        context: context,
+                                        builder: (_) => AlertDialog(content: Image.memory(img)),
+                                      );
+                                    } catch (_) {
+                                      ScaffoldMessenger.of(context).showSnackBar(
+                                        const SnackBar(content: Text('Unable to display image proof.')),
+                                      );
+                                    }
                                   },
                                   child: Text(
                                     'Tap to view image proof',
-                                    style: TextStyle(
-                                      decoration: TextDecoration.underline,
-                                      color: localSecondary,
-                                    ),
+                                    style: TextStyle(decoration: TextDecoration.underline, color: localSecondary),
                                   ),
                                 ),
+
                               if (comment.isNotEmpty)
                                 Text('Comment: $comment',
                                     style: TextStyle(fontSize: 12, color: localSecondary)),
@@ -511,12 +549,11 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
 
   Future<bool> showEditSubtasksDialog(Map<String, dynamic> task) async {
     final newSubtaskController = TextEditingController();
-    final rawSubtasks = task['subtasks'];
-    final subtasks = rawSubtasks is List
-        ? List<Map<String, dynamic>>.from(rawSubtasks)
-        : <Map<String, dynamic>>[];
 
-    final controllers = subtasks.map((s) => TextEditingController(text: s['title'])).toList();
+    // Build controllers for existing subtasks (by title only — updateSubtasks will preserve data)
+    final rawSubtasks = task['subtasks'];
+    final existing = rawSubtasks is List ? List<Map<String, dynamic>>.from(rawSubtasks) : <Map<String, dynamic>>[];
+    final controllers = existing.map((s) => TextEditingController(text: (s['title'] ?? '').toString())).toList();
 
     return showDialog<bool>(
       context: context,
@@ -542,14 +579,24 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
                   TextField(
                     controller: newSubtaskController,
                     decoration: const InputDecoration(hintText: "New subtask"),
+                    onSubmitted: (_) {
+                      final t = newSubtaskController.text.trim();
+                      if (t.isNotEmpty) {
+                        setState(() {
+                          controllers.add(TextEditingController(text: t));
+                          newSubtaskController.clear();
+                        });
+                      }
+                    },
                   ),
                   TextButton.icon(
                     icon: const Icon(Icons.add),
                     label: const Text("Add Subtask"),
                     onPressed: () {
-                      if (newSubtaskController.text.trim().isNotEmpty) {
+                      final t = newSubtaskController.text.trim();
+                      if (t.isNotEmpty) {
                         setState(() {
-                          controllers.add(TextEditingController(text: newSubtaskController.text.trim()));
+                          controllers.add(TextEditingController(text: t));
                           newSubtaskController.clear();
                         });
                       }
@@ -561,60 +608,15 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
             actions: [
               TextButton(
                 onPressed: () {
-                  final updatedTitles =
-                      controllers.map((c) => c.text.trim()).where((t) => t.isNotEmpty).toList();
+                  final updatedTitles = controllers
+                      .map((c) => c.text.trim())
+                      .where((t) => t.isNotEmpty)
+                      .toList();
 
-                  final rawExisting = task['subtasks'];
-                  final existingSubtasks = rawExisting is List
-                      ? List<Map<String, dynamic>>.from(rawExisting)
-                      : <Map<String, dynamic>>[];
+                  // 🔔 This method preserves existing subtasks and
+                  // notifies the assignee if *new* titles were added.
+                  db.updateSubtasks(widget.projectName, task['id'], updatedTitles);
 
-                  final newSubtasks = updatedTitles.map((title) {
-                    // Find existing subtask by title (case-insensitive)
-                    final match = existingSubtasks.firstWhere(
-                      (sub) => sub['title'].toString().trim().toLowerCase() ==
-                          title.trim().toLowerCase(),
-                      orElse: () => <String, dynamic>{},
-                    );
-
-                    // Preserve existing id if available, otherwise create one
-                    final id = (match['id'] != null && match['id'].toString().isNotEmpty)
-                        ? match['id'].toString()
-                        : DateTime.now().microsecondsSinceEpoch.toString();
-
-                    // Preserve fields when present, otherwise default
-                    final status = (match['status'] != null) ? match['status'] : 'Pending';
-                    final proof = (match['proof'] != null) ? match['proof'] : '';
-                    final comment = (match['comment'] != null) ? match['comment'] : '';
-
-                    // Normalize votes to Map<String,bool>
-                    Map<String, bool> votesMap = {};
-                    if (match['votes'] is Map) {
-                      (match['votes'] as Map).forEach((k, v) {
-                        if (k != null) votesMap[k.toString()] = (v == true);
-                      });
-                    }
-
-                    // Preserve voter comments map
-                    Map<String, String> commentsMap = {};
-                    if (match['comments'] is Map) {
-                      (match['comments'] as Map).forEach((k, v) {
-                        if (k != null) commentsMap[k.toString()] = v?.toString() ?? '';
-                      });
-                    }
-
-                    return {
-                      'id': id,
-                      'title': title,
-                      'status': status,
-                      'proof': proof,
-                      'comment': comment,
-                      'votes': votesMap,
-                      'comments': commentsMap,
-                    };
-                  }).toList();
-
-                  db.replaceSubtasks(widget.projectName, task['id'], newSubtasks);
                   Navigator.pop(context, true);
                 },
                 child: const Text("Save"),
@@ -626,9 +628,11 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
     ).then((value) => value ?? false);
   }
 
+
   Widget _buildContent(BuildContext context) {
     // NEW: auto-embed if we’re already inside a Scaffold (e.g. DashboardScaffold)
-    final bool useEmbedded = widget.embedded || Scaffold.maybeOf(context) != null;
+    final bool useEmbedded = widget.embedded;
+
     
     // If the project wasn't found, fail gracefully.
     if (project.isEmpty) {
@@ -753,7 +757,8 @@ class _ProjectStatusScreenState extends State<ProjectStatusScreen> {
     final content = _buildContent(context);
 
     // NEW: auto-embed if there’s an ancestor Scaffold
-    final bool useEmbedded = widget.embedded || Scaffold.maybeOf(context) != null;
+    final bool useEmbedded = widget.embedded;
+
 
     if (useEmbedded) {
       // Content-only: parent chrome (AppBar/BottomNav) is provided by DashboardScaffold.

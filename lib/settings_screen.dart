@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'app_colors.dart';
+import 'mock_database.dart'; // <-- NEW
 
 class SettingsScreen extends StatefulWidget {
   final bool isAdmin;
@@ -26,7 +27,7 @@ class SettingsScreen extends StatefulWidget {
     this.onOpenAbout,
     this.onOpenMembers,
     this.onOpenHelpCenter,
-    this.onOpenUpdatePassword, 
+    this.onOpenUpdatePassword,
     this.isDarkMode = false,
     this.onToggleTheme,
     this.embedded = true,
@@ -39,19 +40,28 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late bool _isDarkMode;
 
+  // --- NEW: notifications toggle state
+  String _username = '';
+  bool _notifEnabled = true;
+
   @override
   void initState() {
     super.initState();
     _isDarkMode = widget.isDarkMode;
+
+    // Load notifications setting for current user
+    final db = MockDatabase();
+    final id = db.currentLoggedInUser ?? '';
+    _username = db.getUsernameByEmail(id) ?? id; // normalize to username
+    _notifEnabled = _username.isNotEmpty
+        ? db.isNotificationsEnabled(_username)
+        : true; // default ON if somehow empty
   }
 
   void _handleThemeChange(bool value) {
     setState(() => _isDarkMode = value);
-
-    // IMPORTANT: this must be provided by the app root for the theme to actually change.
     widget.onToggleTheme?.call(value);
 
-    // Feedback (works embedded or standalone as long as there’s a Scaffold above).
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text(value ? 'Dark Mode ON' : 'Light Mode ON', style: GoogleFonts.poppins()),
@@ -62,10 +72,25 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // --- NEW: persist notifications toggle
+  void _handleNotificationsChange(bool value) {
+    setState(() => _notifEnabled = value);
+    if (_username.isNotEmpty) {
+      MockDatabase().setNotificationsEnabled(_username, value);
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(value ? 'Notifications ON' : 'Notifications OFF', style: GoogleFonts.poppins()),
+        backgroundColor: AppColors.blueText,
+        behavior: SnackBarBehavior.floating,
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   @override
   void didUpdateWidget(covariant SettingsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // keep local switch in sync if parent theme changes while this screen is alive
     if (oldWidget.isDarkMode != widget.isDarkMode) {
       setState(() => _isDarkMode = widget.isDarkMode);
     }
@@ -83,7 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
         Text('Account',
             style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
         const SizedBox(height: 10),
-        
+
         _buildSettingsTile(
           context,
           icon: Icons.lock,
@@ -98,18 +123,21 @@ class _SettingsScreenState extends State<SettingsScreen> {
           textColor: textColor,
         ),
 
-
         const SizedBox(height: 30),
 
         Text('App Settings',
             style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
         const SizedBox(height: 10),
-        _buildSettingsTile(
-          context,
-          icon: Icons.notifications,
-          title: 'Notifications',
-          onTap: () {}, // placeholder
-          textColor: textColor,
+
+        // --- NEW: actual Notifications toggle
+        SwitchListTile(
+          value: _notifEnabled,
+          onChanged: _handleNotificationsChange,
+          title: Text('Notifications', style: GoogleFonts.poppins(fontSize: 16, color: textColor)),
+          secondary: Icon(Icons.notifications, color: textColor),
+          activeColor: AppColors.blueText,
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
 
         // Theme toggle
@@ -133,7 +161,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           icon: Icons.help_outline,
           title: 'Help Center',
           onTap: () {
-            // Prefer embedded if provided, otherwise push the standalone route
             if (widget.onOpenHelpCenter != null) {
               widget.onOpenHelpCenter!();
             } else {
@@ -169,10 +196,13 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: Text('Confirm Logout', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
                 content: Text('Are you sure you want to log out?', style: GoogleFonts.poppins()),
                 actions: [
-                  TextButton(onPressed: () => Navigator.of(context).pop(), child: Text('Cancel', style: GoogleFonts.poppins(color: Colors.grey[600]))),
+                  TextButton(onPressed: () => Navigator.of(context).pop(), 
+                  child: Text('Cancel', style: GoogleFonts.poppins(color: Colors.grey[600]))
+                ),
                   TextButton(
                     onPressed: () {
                       Navigator.of(context).pop();
+                      MockDatabase().logout();  
                       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
                     },
                     child: Text('Log Out', style: GoogleFonts.poppins(color: AppColors.blueText)),
@@ -187,11 +217,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
 
     if (widget.embedded) {
-      // content-only so the DashboardScaffold provides the chrome
       return SafeArea(top: false, bottom: false, child: content);
     }
 
-    // Standalone: keep legacy route working
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
       appBar: AppBar(

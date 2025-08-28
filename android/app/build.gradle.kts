@@ -1,34 +1,19 @@
 plugins {
     id("com.android.application")
-    id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id("kotlin-android")                 // keep as-is; version is set in the root
     id("dev.flutter.flutter-gradle-plugin")
 }
 
 android {
     namespace = "com.example.flutter_application_1"
 
-    // Kotlin DSL: ensure Int
     compileSdk = flutter.compileSdkVersion.toInt()
-
     ndkVersion = "27.0.12077973"
-
-    compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
-    }
-
-    kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
-    }
 
     defaultConfig {
         applicationId = "com.example.flutter_application_1"
-
-        // Kotlin DSL: use `minSdk =` and convert to Int
-        minSdk = flutter.minSdkVersion.toInt()
-
-        // Kotlin DSL: ensure Int
+        // minSdk must be >= 21 for desugaring
+        minSdk = maxOf(21, flutter.minSdkVersion.toInt())
         targetSdk = flutter.targetSdkVersion.toInt()
 
         versionCode = flutter.versionCode
@@ -40,8 +25,24 @@ android {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
+
+    // ✅ Java 17 + core library desugaring
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_17
+        targetCompatibility = JavaVersion.VERSION_17
+        isCoreLibraryDesugaringEnabled = true
+    }
+
+    kotlinOptions {
+        jvmTarget = "17"
+    }
 }
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // ✅ Needed when isCoreLibraryDesugaringEnabled = true
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.2")
 }

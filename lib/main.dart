@@ -1,7 +1,10 @@
+// main.dart
+import 'dart:async'; // <-- NEW: for StreamSubscription
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'services/deadline_notifier.dart';
 import 'login_screen.dart';
 import 'main_dashboard.dart';
 import 'start_new_project.dart';
@@ -15,7 +18,6 @@ import 'about_app_screen.dart';
 import 'help_center_screen.dart';
 import 'password_reset_screen.dart';
 import 'edit_project_screen.dart';
-import 'admin_dashboard.dart';
 import 'mock_database.dart';
 import 'app_colors.dart';
 import 'user_logs_screen.dart';
@@ -37,13 +39,36 @@ class TogetherApp extends StatefulWidget {
   State<TogetherApp> createState() => _TogetherAppState();
 }
 
-class _TogetherAppState extends State<TogetherApp> {
+class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
   ThemeMode _themeMode = ThemeMode.light;
+
+  // --- NEW: we’ll show SnackBars for notifications
+  final GlobalKey<ScaffoldMessengerState> _messengerKey =
+      GlobalKey<ScaffoldMessengerState>();
+  StreamSubscription<Map<String, dynamic>>? _notifSub;
+  DeadlineNotifier? _deadline;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadTheme();
+    _listenForNotifications(); // NEW
+
+    _deadline = DeadlineNotifier(
+      db: MockDatabase(),
+      crisisDays: 7,                          // alert when ≤ 7 days left
+      checkEvery: const Duration(hours: 6),   // change to minutes for testing
+    );
+    _deadline!.start();
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _deadline?.stop();
+    _notifSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadTheme() async {
@@ -66,11 +91,53 @@ class _TogetherAppState extends State<TogetherApp> {
     _saveTheme(isDark);
   }
 
+  // -------------------------
+  // NEW: Notification hookup
+  // -------------------------
+  void _listenForNotifications() {
+    final db = MockDatabase();
+
+    // Listen to all notifications coming from the MockDatabase
+    _notifSub = db.notificationStream.listen((event) {
+      // Current user can be an email or username in your app,
+      // normalize it to the username for comparison.
+      final currentId = db.currentLoggedInUser;
+      final currentUsername =
+          db.getUsernameByEmail(currentId ?? '') ?? currentId ?? '';
+
+      // Only show for the active user
+      final target = (event['username'] as String?) ?? '';
+      if (target != currentUsername) return;
+
+      final n = Map<String, dynamic>.from(
+          event['notification'] as Map<String, dynamic>);
+
+      // Respect user’s notification toggle
+      if (!db.isNotificationsEnabled(currentUsername)) return;
+
+      // Show a lightweight in-app banner for now
+      final title = (n['title'] ?? 'Notification').toString();
+      final body = (n['body'] ?? '').toString();
+
+      _messengerKey.currentState?.clearSnackBars();
+      _messengerKey.currentState?.showSnackBar(
+        SnackBar(
+          content: Text('$title — $body'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    });
+
+
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Together!',
       debugShowCheckedModeBanner: false,
+      scaffoldMessengerKey: _messengerKey, // NEW: needed for SnackBars
       theme: ThemeData(
         brightness: Brightness.light,
         scaffoldBackgroundColor: AppColors.background,
@@ -107,9 +174,9 @@ class _TogetherAppState extends State<TogetherApp> {
         ),
         textTheme: GoogleFonts.poppinsTextTheme(
           ThemeData.dark().textTheme.apply(
-            bodyColor: Colors.white,
-            displayColor: Colors.white,
-          ),
+                bodyColor: Colors.white,
+                displayColor: Colors.white,
+              ),
         ),
         bottomNavigationBarTheme: const BottomNavigationBarThemeData(
           backgroundColor: Color(0xFF1F1F1F),
@@ -137,18 +204,17 @@ class _TogetherAppState extends State<TogetherApp> {
               ),
             );
 
-          case '/projectStatus': {
-            final args = (settings.arguments as Map?) ?? {};
-            return MaterialPageRoute(
-              builder: (_) => ProjectStatusScreen(
-                projectName: args['projectName'] as String,
-                courseName: args['courseName'] as String,
-                embedded: (args['embedded'] as bool?) ?? false,
-                // onOpenAssignTaskEmbedded is only useful when shown inside MainDashboard,
-                // so we usually don’t pass a callback here.
-              ),
-            );
-          }
+          case '/projectStatus':
+            {
+              final args = (settings.arguments as Map?) ?? {};
+              return MaterialPageRoute(
+                builder: (_) => ProjectStatusScreen(
+                  projectName: args['projectName'] as String,
+                  courseName: args['courseName'] as String,
+                  embedded: (args['embedded'] as bool?) ?? false,
+                ),
+              );
+            }
 
           case '/projectSchedule':
             final args = settings.arguments as Map<String, dynamic>;
@@ -177,10 +243,12 @@ class _TogetherAppState extends State<TogetherApp> {
             );
 
           case '/start_new_project':
-            return MaterialPageRoute(builder: (_) => const StartNewProjectScreen());
+            return MaterialPageRoute(
+                builder: (_) => const StartNewProjectScreen());
 
           case '/projectPlanning':
-            return MaterialPageRoute(builder: (_) => const ProjectPlanningScreen());
+            return MaterialPageRoute(
+                builder: (_) => const ProjectPlanningScreen());
 
           case '/selectCourse':
             final db = MockDatabase();
@@ -201,7 +269,8 @@ class _TogetherAppState extends State<TogetherApp> {
                 .where((course) => course.isNotEmpty && course != 'N/A')
                 .toSet();
             return MaterialPageRoute(
-              builder: (_) => SelectCoursesScreen(courses: visibleCourses.toList()),
+              builder: (_) =>
+                  SelectCoursesScreen(courses: visibleCourses.toList()),
             );
 
           case '/courseTeams':
@@ -213,10 +282,12 @@ class _TogetherAppState extends State<TogetherApp> {
             );
 
           case '/manage_users':
-            return MaterialPageRoute(builder: (_) => const ManageUsersScreen());
+            return MaterialPageRoute(
+                builder: (_) => const ManageUsersScreen());
 
           case '/update_password':
-            return MaterialPageRoute(builder: (_) => const UpdatePasswordScreen());
+            return MaterialPageRoute(
+                builder: (_) => const UpdatePasswordScreen());
 
           case '/about_app':
             return MaterialPageRoute(builder: (_) => const AboutAppScreen());
@@ -225,11 +296,13 @@ class _TogetherAppState extends State<TogetherApp> {
             return MaterialPageRoute(builder: (_) => const HelpCenterScreen());
 
           case '/passwordreset':
-            return MaterialPageRoute(builder: (_) => const PasswordResetScreen());
+            return MaterialPageRoute(
+                builder: (_) => const PasswordResetScreen());
 
           case '/edit_project':
             final args = settings.arguments as Map<String, dynamic>;
-            return MaterialPageRoute(builder: (_) => EditProjectScreen(project: args));
+            return MaterialPageRoute(
+                builder: (_) => EditProjectScreen(project: args));
 
           case '/user_logs':
             return MaterialPageRoute(builder: (_) => const UserLogsScreen());
@@ -243,18 +316,21 @@ class _TogetherAppState extends State<TogetherApp> {
             );
 
           case '/manage_courses':
-            return MaterialPageRoute(builder: (_) => const ManageCoursesScreen());
+            return MaterialPageRoute(
+                builder: (_) => const ManageCoursesScreen());
 
           case '/assignLeader':
             final args = settings.arguments as Map<String, dynamic>;
             return MaterialPageRoute(
-              builder: (_) => AssignLeaderScreen(projectName: args['projectName']),
+              builder: (_) =>
+                  AssignLeaderScreen(projectName: args['projectName']),
             );
 
           case '/assign_tasks':
             final args = settings.arguments as Map<String, dynamic>;
             return MaterialPageRoute(
-              builder: (_) => AssignTaskScreen(projectName: args['projectName']),
+              builder: (_) =>
+                  AssignTaskScreen(projectName: args['projectName']),
             );
 
           default:

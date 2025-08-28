@@ -427,28 +427,15 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
       ),
     ]);
 
-    return Scaffold(
-      appBar: AppBar(
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () {
-            // Pops this route and goes back to SelectCoursesScreen
-            Navigator.pop(context);
-          },
-        ),
-        title: titleWidget,
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-      ),
-      body: DashboardScaffold(
-        appBarTitle: titleWidget,
-        displayName: fullName,
-        body: body,
-        bottomItems: _navItemsForRole(),
-        currentIndex: _projectsTabIndex(),
-        onTap: _handleTap,
-      ),
+    return DashboardScaffold(
+      appBarTitle: titleWidget,       // shows the Together! title
+      displayName: fullName,
+      body: body,                     // <- your _buildBody(context)
+      bottomItems: _navItemsForRole(),
+      currentIndex: _projectsTabIndex(),
+      onTap: _handleTap,
     );
+
   }
 
 }
