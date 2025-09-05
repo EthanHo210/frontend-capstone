@@ -1,10 +1,12 @@
 // admin_dashboard.dart
+import 'dart:convert';
+
+import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'mock_database.dart';
+
 import 'app_colors.dart';
-import 'dart:convert';
-import 'package:crypto/crypto.dart';
+import 'mock_database.dart';
 
 class AdminDashboard extends StatefulWidget {
   /// When true, renders content only (no Scaffold/AppBar/FAB) so it can live
@@ -19,6 +21,41 @@ class AdminDashboard extends StatefulWidget {
 class _AdminDashboardState extends State<AdminDashboard> {
   final db = MockDatabase();
 
+  // ------- Shared UI helpers -------
+
+  InputDecoration _fieldDecoration(String hint) {
+    final theme = Theme.of(context);
+    return InputDecoration(
+      hintText: hint,
+      hintStyle: GoogleFonts.poppins(
+        color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
+      ),
+      filled: true,
+      fillColor: theme.colorScheme.surfaceVariant,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: BorderSide.none,
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+    );
+  }
+
+  ButtonStyle get _primaryBtnStyle => ElevatedButton.styleFrom(
+        backgroundColor: AppColors.button,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      );
+
+  ButtonStyle get _dangerBtnStyle => ElevatedButton.styleFrom(
+        backgroundColor: Theme.of(context).colorScheme.error,
+        foregroundColor: Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      );
+
+  // ------- Dialogs -------
+
   void _createNewUser() {
     showDialog(
       context: context,
@@ -30,37 +67,53 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
         return StatefulBuilder(builder: (context, setStateDialog) {
           return AlertDialog(
-            title: Text('Create New User',
-                style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold, color: AppColors.blueText)),
+            title: Text(
+              'Create New User',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _buildInputField(usernameController, 'Username'),
+                  TextField(
+                    controller: usernameController,
+                    decoration: _fieldDecoration('Username'),
+                    style: GoogleFonts.poppins(),
+                  ),
                   const SizedBox(height: 12),
-                  _buildInputField(emailController, 'Email'),
+                  TextField(
+                    controller: emailController,
+                    decoration: _fieldDecoration('Email'),
+                    style: GoogleFonts.poppins(),
+                  ),
                   const SizedBox(height: 12),
-                  _buildInputField(passwordController, 'Password', obscure: true),
+                  TextField(
+                    controller: passwordController,
+                    obscureText: true,
+                    decoration: _fieldDecoration('Password'),
+                    style: GoogleFonts.poppins(),
+                  ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedRole,
-                    decoration: _dropdownDecoration(),
-                    onChanged: (v) => setStateDialog(() => selectedRole = v ?? 'user'),
-                    items: ['user', 'teacher']
+                    items: const ['user', 'teacher']
                         .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                         .toList(),
+                    onChanged: (v) => setStateDialog(() => selectedRole = v ?? 'user'),
+                    decoration: _fieldDecoration('Role'),
+                    style: GoogleFonts.poppins(),
+                    dropdownColor: Theme.of(context).cardColor,
                   ),
                 ],
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel', style: GoogleFonts.poppins()),
+              ),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.blueText,
-                  foregroundColor: Colors.white,
-                ),
+                style: _primaryBtnStyle,
                 onPressed: () {
                   final username = usernameController.text.trim();
                   final email = emailController.text.trim();
@@ -79,41 +132,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   if (mounted) setState(() {});
                   Navigator.pop(context);
                 },
-                child: const Text('Create'),
+                child: Text('Create', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
               ),
             ],
           );
         });
       },
-    );
-  }
-
-  InputDecoration _dropdownDecoration() => InputDecoration(
-        filled: true,
-        fillColor: Theme.of(context).brightness == Brightness.dark
-            ? Colors.grey[800]
-            : Colors.blue[50],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      );
-
-  Widget _buildInputField(TextEditingController c, String hint, {bool obscure = false}) {
-    return TextField(
-      controller: c,
-      obscureText: obscure,
-      decoration: InputDecoration(
-        hintText: hint,
-        filled: true,
-        fillColor: Theme.of(context).brightness == Brightness.dark
-            ? Colors.grey[800]
-            : Colors.blue[50],
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide.none,
-        ),
-      ),
     );
   }
 
@@ -131,49 +155,53 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
         return StatefulBuilder(builder: (context, setStateDialog) {
           return AlertDialog(
-            title: Text('Manage $oldUsername',
-                style: GoogleFonts.poppins(
-                    fontWeight: FontWeight.bold, color: AppColors.blueText)),
+            title: Text(
+              'Manage $oldUsername',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold),
+            ),
             content: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextField(
                     controller: usernameController,
-                    decoration: _dropdownDecoration().copyWith(hintText: 'Username'),
+                    decoration: _fieldDecoration('Username'),
+                    style: GoogleFonts.poppins(),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: emailController,
-                    decoration: _dropdownDecoration().copyWith(hintText: 'Email'),
+                    decoration: _fieldDecoration('Email'),
+                    style: GoogleFonts.poppins(),
                   ),
                   const SizedBox(height: 12),
                   TextField(
                     controller: passwordController,
                     obscureText: true,
-                    decoration: _dropdownDecoration().copyWith(
-                      hintText: 'New Password (leave blank to keep current)',
-                    ),
+                    decoration: _fieldDecoration('New Password (leave blank to keep current)'),
+                    style: GoogleFonts.poppins(),
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
                     value: selectedRole,
-                    decoration: _dropdownDecoration(),
-                    onChanged: (v) => setStateDialog(() => selectedRole = v ?? selectedRole),
-                    items: ['user', 'teacher']
+                    items: const ['user', 'teacher']
                         .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                         .toList(),
+                    onChanged: (v) => setStateDialog(() => selectedRole = v ?? selectedRole),
+                    decoration: _fieldDecoration('Role'),
+                    style: GoogleFonts.poppins(),
+                    dropdownColor: Theme.of(context).cardColor,
                   ),
                 ],
               ),
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text('Cancel', style: GoogleFonts.poppins()),
+              ),
               ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.blueText,
-                  foregroundColor: Colors.white,
-                ),
+                style: _primaryBtnStyle,
                 onPressed: () {
                   final newUsername = usernameController.text.trim();
                   final email = emailController.text.trim();
@@ -190,13 +218,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       ? user['password']
                       : sha256.convert(utf8.encode(newPassword)).toString();
 
-                  db.updateUser(oldUsername, email, updatedPassword, selectedRole,
-                      newUsername: newUsername);
+                  db.updateUser(
+                    oldUsername,
+                    email,
+                    updatedPassword,
+                    selectedRole,
+                    newUsername: newUsername,
+                  );
 
                   if (mounted) setState(() {});
                   Navigator.pop(context);
                 },
-                child: const Text('Save Changes'),
+                child: Text('Save Changes', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
               ),
             ],
           );
@@ -217,46 +250,48 @@ class _AdminDashboardState extends State<AdminDashboard> {
       context: context,
       builder: (context) => AlertDialog(
         title: Row(
-          children: const [
-            Icon(Icons.warning, color: Colors.red),
-            SizedBox(width: 8),
-            Text('Delete User'),
+          children: [
+            Icon(Icons.warning, color: Theme.of(context).colorScheme.error),
+            const SizedBox(width: 8),
+            Text('Delete User', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
           ],
         ),
         content: Text(
           'Are you sure you want to permanently delete "$username"? This action cannot be undone.',
+          style: GoogleFonts.poppins(),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text('Cancel', style: GoogleFonts.poppins()),
+          ),
           ElevatedButton(
+            style: _dangerBtnStyle,
             onPressed: () {
               db.deleteUser(username);
               if (mounted) setState(() {});
               Navigator.pop(context);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Confirm'),
+            child: Text('Confirm', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
           ),
         ],
       ),
     );
   }
 
+  // ------- UI -------
+
   @override
   Widget build(BuildContext context) {
     final users = db.getAllUsers();
+    final theme = Theme.of(context);
+    final titleColor =
+        theme.textTheme.titleLarge?.color ?? theme.colorScheme.onSurface;
+    final bodyColor =
+        theme.textTheme.bodyMedium?.color ?? theme.colorScheme.onSurfaceVariant;
 
-    // ——— Embedded mode (no Scaffold/AppBar/FAB) ———
+    // Embedded mode (no Scaffold/AppBar/FAB)
     if (widget.embedded) {
-      final isDark = Theme.of(context).brightness == Brightness.dark;
-      final titleColor =
-          Theme.of(context).textTheme.titleLarge?.color ?? (isDark ? Colors.white : Colors.black);
-
-      // Use a single ListView so the parent wrapper (which already provides Expanded)
-      // can size us properly. The first item is a header (title + Create button).
       return ListView.builder(
         padding: const EdgeInsets.all(16),
         itemCount: users.length + 1,
@@ -266,21 +301,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(0, 0, 0, 8),
+                  padding: const EdgeInsets.only(bottom: 8),
                   child: Row(
                     children: [
-                      Text('Users',
-                          style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.bold, fontSize: 18, color: titleColor)),
+                      Text(
+                        'Users',
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 18,
+                          color: titleColor,
+                        ),
+                      ),
                       const Spacer(),
                       ElevatedButton.icon(
                         onPressed: _createNewUser,
                         icon: const Icon(Icons.add),
-                        label: const Text('Create User'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.blueText,
-                          foregroundColor: Colors.white,
-                        ),
+                        label: Text('Create User', style: GoogleFonts.poppins()),
+                        style: _primaryBtnStyle,
                       ),
                     ],
                   ),
@@ -294,27 +331,35 @@ class _AdminDashboardState extends State<AdminDashboard> {
           final username = user['username'];
 
           return Card(
-            elevation: 3,
+            color: theme.cardColor,
+            elevation: 2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ListTile(
-              title: Text(username,
-                  style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold, color: AppColors.blueText)),
+              title: Text(
+                username,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: titleColor),
+              ),
               subtitle: Text(
                 'Email: ${user['email']}\nRole: ${user['role']}',
-                style: GoogleFonts.poppins(color: AppColors.blueText.withOpacity(0.8)),
+                style: GoogleFonts.poppins(color: bodyColor),
               ),
               trailing: username == 'admin'
-                  ? const Text('(Admin)', style: TextStyle(fontWeight: FontWeight.bold))
+                  ? Text('(Admin)',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        color: bodyColor,
+                      ))
                   : Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          tooltip: 'Edit user',
+                          icon: Icon(Icons.edit, color: theme.colorScheme.primary),
                           onPressed: () => _manageUser(username),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
+                          tooltip: 'Delete user',
+                          icon: Icon(Icons.delete, color: theme.colorScheme.error),
                           onPressed: () => _deleteUser(username),
                         ),
                       ],
@@ -325,7 +370,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
       );
     }
 
-    // ——— Legacy full-screen mode (kept for direct routes) ———
+    // Legacy full-screen mode (kept for direct routes)
     return Scaffold(
       appBar: AppBar(
         backgroundColor: Colors.transparent,
@@ -334,36 +379,40 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: Row(
           children: [
             IconButton(
-              icon: const Icon(Icons.arrow_back, color: AppColors.blueText),
+              icon: Icon(Icons.arrow_back, color: titleColor),
               onPressed: () => Navigator.pop(context),
             ),
             const SizedBox(width: 4),
-            Text('To',
-                style: GoogleFonts.kavoon(
-                  textStyle: const TextStyle(
-                    color: Colors.red,
-                    fontSize: 35,
-                    fontWeight: FontWeight.bold,
-                    fontStyle: FontStyle.italic,
-                    shadows: [Shadow(offset: Offset(4.0, 4.0), blurRadius: 1.5, color: Colors.white)],
-                  ),
-                )),
-            Text('gether!',
-                style: GoogleFonts.kavoon(
-                  textStyle: const TextStyle(
-                    color: Color.fromRGBO(42, 49, 129, 1),
-                    fontSize: 35,
-                    fontWeight: FontWeight.bold,
-                    fontStyle: FontStyle.italic,
-                    shadows: [Shadow(offset: Offset(4.0, 4.0), blurRadius: 1.5, color: Colors.white)],
-                  ),
-                )),
+            Text(
+              'To',
+              style: GoogleFonts.kavoon(
+                textStyle: const TextStyle(
+                  color: Colors.red,
+                  fontSize: 35,
+                  fontWeight: FontWeight.bold,
+                  fontStyle: FontStyle.italic,
+                  shadows: [Shadow(offset: Offset(4.0, 4.0), blurRadius: 1.5, color: Colors.white)],
+                ),
+              ),
+            ),
+            Text(
+              'gether!',
+              style: GoogleFonts.kavoon(
+                textStyle: const TextStyle(
+                  color: Color.fromRGBO(42, 49, 129, 1),
+                  fontSize: 35,
+                  fontWeight: FontWeight.bold,
+                  fontStyle: FontStyle.italic,
+                  shadows: [Shadow(offset: Offset(4.0, 4.0), blurRadius: 1.5, color: Colors.white)],
+                ),
+              ),
+            ),
           ],
         ),
       ),
       floatingActionButton: FloatingActionButton(
         onPressed: _createNewUser,
-        backgroundColor: AppColors.blueText,
+        backgroundColor: AppColors.button,
         child: const Icon(Icons.add, color: Colors.white),
       ),
       body: ListView.builder(
@@ -374,27 +423,35 @@ class _AdminDashboardState extends State<AdminDashboard> {
           final username = user['username'];
 
           return Card(
-            elevation: 3,
+            color: theme.cardColor,
+            elevation: 2,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             child: ListTile(
-              title: Text(username,
-                  style: GoogleFonts.poppins(
-                      fontWeight: FontWeight.bold, color: AppColors.blueText)),
+              title: Text(
+                username,
+                style: GoogleFonts.poppins(fontWeight: FontWeight.w700, color: titleColor),
+              ),
               subtitle: Text(
                 'Email: ${user['email']}\nRole: ${user['role']}',
-                style: GoogleFonts.poppins(color: AppColors.blueText.withOpacity(0.8)),
+                style: GoogleFonts.poppins(color: bodyColor),
               ),
               trailing: username == 'admin'
-                  ? const Text('(Admin)', style: TextStyle(fontWeight: FontWeight.bold))
+                  ? Text('(Admin)',
+                      style: GoogleFonts.poppins(
+                        fontWeight: FontWeight.bold,
+                        color: bodyColor,
+                      ))
                   : Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         IconButton(
-                          icon: const Icon(Icons.edit, color: Colors.blue),
+                          tooltip: 'Edit user',
+                          icon: Icon(Icons.edit, color: theme.colorScheme.primary),
                           onPressed: () => _manageUser(username),
                         ),
                         IconButton(
-                          icon: const Icon(Icons.delete, color: Colors.red),
+                          tooltip: 'Delete user',
+                          icon: Icon(Icons.delete, color: theme.colorScheme.error),
                           onPressed: () => _deleteUser(username),
                         ),
                       ],

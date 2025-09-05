@@ -45,7 +45,6 @@ class _LoginScreenState extends State<LoginScreen> {
           ),
         ),
       );
-
     } else {
       _showError('Invalid email or password.');
     }

@@ -139,7 +139,9 @@ class DashboardScaffold extends StatelessWidget {
         backgroundColor: Theme.of(context).colorScheme.surface,
         items: bottomItems,
       ),
-      floatingActionButton: floatingActionButton,
+      floatingActionButton: (floatingActionButton == null)
+        ? null
+        : HeroMode(enabled: false, child: floatingActionButton!),
       floatingActionButtonLocation: floatingActionButtonLocation ?? FloatingActionButtonLocation.endFloat,
     );
   }

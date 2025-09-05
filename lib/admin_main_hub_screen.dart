@@ -1,21 +1,32 @@
 // admin_main_hub_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'mock_database.dart';
+
 import 'app_colors.dart';
+import 'mock_database.dart';
 
 /// Content-only Admin hub — NO Scaffold / NO AppBar.
-/// The parent (MainDashboard) should render the app's AppBar + BottomNav.
+/// The parent (MainDashboard) renders the app's AppBar + BottomNav.
 /// onNavigate receives action keys like 'manage_users' or 'manage_courses'.
 class AdminMainHubScreen extends StatelessWidget {
   final void Function(String action)? onNavigate;
 
   const AdminMainHubScreen({super.key, this.onNavigate});
 
+  ButtonStyle _primaryBtnStyle(BuildContext context) => ElevatedButton.styleFrom(
+        backgroundColor: AppColors.button,
+        foregroundColor: Colors.white,
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        minimumSize: const Size.fromHeight(56),
+      );
+
   @override
   Widget build(BuildContext context) {
     final db = MockDatabase();
     final role = db.getUserRole(db.currentLoggedInUser ?? '');
+    final titleColor =
+        Theme.of(context).textTheme.titleLarge?.color ?? Theme.of(context).colorScheme.onSurface;
 
     Widget buildButton({
       required IconData icon,
@@ -26,17 +37,12 @@ class AdminMainHubScreen extends StatelessWidget {
         width: double.infinity,
         child: ElevatedButton.icon(
           icon: Icon(icon),
-          label: Text(label, style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.bold)),
-          onPressed: onPressed,
-          style: ElevatedButton.styleFrom(
-            backgroundColor: AppColors.blueText,
-            foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(30),
-            ),
-            minimumSize: const Size.fromHeight(56),
+          label: Text(
+            label,
+            style: GoogleFonts.poppins(fontSize: 16, fontWeight: FontWeight.w600),
           ),
+          onPressed: onPressed,
+          style: _primaryBtnStyle(context),
         ),
       );
     }
@@ -46,7 +52,15 @@ class AdminMainHubScreen extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 8),
+          Text(
+            'Admin Hub',
+            style: GoogleFonts.poppins(
+              fontWeight: FontWeight.w700,
+              fontSize: 18,
+              color: titleColor,
+            ),
+          ),
+          const SizedBox(height: 16),
 
           // Only admins see the Manage Users button
           if (role == 'admin') ...[
@@ -54,7 +68,6 @@ class AdminMainHubScreen extends StatelessWidget {
               icon: Icons.people,
               label: 'Manage Users',
               onPressed: () {
-                // Prefer parent callback (embedded navigation); fallback to route push
                 if (onNavigate != null) {
                   onNavigate!('manage_users');
                 } else {
@@ -62,7 +75,7 @@ class AdminMainHubScreen extends StatelessWidget {
                 }
               },
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
           ],
 
           // Manage Courses available to admins/officers
@@ -77,8 +90,6 @@ class AdminMainHubScreen extends StatelessWidget {
               }
             },
           ),
-
-          const SizedBox(height: 24),
         ],
       ),
     );

@@ -159,30 +159,10 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                 children: [
                   _textField(fullNameController, 'Full Name'),
                   const SizedBox(height: 8),
-                  _textField(usernameController, 'Username'),
-                  const SizedBox(height: 8),
                   _textField(emailController, 'Email'),
                   const SizedBox(height: 8),
                   _textField(passwordController, 'New Password (optional)', obscure: true),
                   const SizedBox(height: 8),
-                  DropdownButtonFormField<String>(
-                    value: selectedRole,
-                    items: ['user', 'teacher', 'officer', 'admin']
-                        .map((role) => DropdownMenuItem(value: role, child: Text(role)))
-                        .toList(),
-                    onChanged: (value) {
-                      if (value != null) setDialogState(() => selectedRole = value);
-                    },
-                    decoration: InputDecoration(
-                      labelText: 'Role',
-                      filled: true,
-                      fillColor: theme.colorScheme.surface,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(8),
-                        borderSide: BorderSide.none,
-                      ),
-                    ),
-                  ),
                 ],
               ),
             ),

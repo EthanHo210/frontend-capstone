@@ -22,29 +22,57 @@ class AssignTaskScreen extends StatefulWidget {
 class _AssignTaskScreenState extends State<AssignTaskScreen> {
   final db = MockDatabase();
   final _formKey = GlobalKey<FormState>();
+
   String? _taskTitle;
   String? _assignedTo;
   final TextEditingController _subtaskController = TextEditingController();
   List<String> subtasks = [];
-  late List<String> members = [];
+
+  // Members filtered to what the viewer is allowed to see (students only)
+  late List<String> _visibleAssignees = [];
+
+  // Current viewer
+  late final String _viewerId;
+  late final String _viewerUsername;
+  late final String _viewerRole; // 'admin' | 'officer' | 'teacher' | 'user'
+
+  // Project context
+  Map<String, dynamic> _project = const {};
+  String _leaderUsername = '';
+  String _leaderFullName = '';
 
   @override
   void initState() {
     super.initState();
 
-    // Safe project lookup and robust members parsing (String or List)
+    // --- who is viewing ---
+    _viewerId = db.currentLoggedInUser ?? '';
+    _viewerUsername = db.getUsernameByEmail(_viewerId) ?? _viewerId;
+    _viewerRole = db.getUserRole(_viewerId);
+
+    // --- load project + members safely ---
     final all = db.getAllProjects();
-    final project = all.firstWhere(
-      (p) => p['name'] == widget.projectName,
+    _project = all.firstWhere(
+      (p) => (p['name'] ?? '') == widget.projectName,
       orElse: () => <String, dynamic>{},
     );
 
-    if (project.isNotEmpty && project.containsKey('members')) {
-      final raw = project['members'];
+    // Extract leader
+    _leaderUsername = (_project['leader'] ?? '').toString();
+    _leaderFullName = _leaderUsername.isEmpty
+        ? ''
+        : (db.getUserByUsername(_leaderUsername)?['fullName'] ??
+            db.getFullNameByUsername(_leaderUsername) ??
+            _leaderUsername);
+
+    // Parse members (String CSV or List), then keep only students for assignment
+    List<String> rawMembers = [];
+    if (_project.isNotEmpty && _project.containsKey('members')) {
+      final raw = _project['members'];
       if (raw is List) {
-        members = raw.map((e) => e.toString()).toList();
+        rawMembers = raw.map((e) => e.toString()).toList();
       } else if (raw is String) {
-        members = raw
+        rawMembers = raw
             .split(',')
             .map((s) => s.trim())
             .where((s) => s.isNotEmpty)
@@ -52,8 +80,24 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       }
     }
 
-    // Keep only student accounts (defensive)
-    members = members.where((u) => db.isStudent(u)).toList();
+    // Students should only see their own team's students + leader (leader shown read-only)
+    // Teachers/Admins also assign to students only (typical flow), but can view any team.
+    final teamStudents = rawMembers.where((u) => db.isStudent(u)).toList();
+
+    // Restrict visibility if viewer is a student: must be on the team
+    if (_viewerRole == 'user') {
+      final isOnTeam = rawMembers.contains(_viewerUsername);
+      if (!isOnTeam) {
+        // Block access if student tries to open a project they don't belong to
+        Future.microtask(() => _showDenied());
+        return;
+      }
+      _visibleAssignees = teamStudents;
+    } else {
+      // teacher/admin/officer (officer typically shouldn't reach here,
+      // but if they do, still keep assignees = students of this project)
+      _visibleAssignees = teamStudents;
+    }
   }
 
   @override
@@ -62,26 +106,60 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     super.dispose();
   }
 
+  void _showDenied() {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Access Denied',
+            style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+        content: Text(
+          'You are not a member of this project.',
+          style: GoogleFonts.poppins(),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              // Close this screen if possible
+              Navigator.maybePop(context);
+              widget.onCreated?.call(false);
+            },
+            child: Text('OK', style: GoogleFonts.poppins()),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _submitTask() {
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
-    if (members.isEmpty) {
+    if (_visibleAssignees.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('No eligible members to assign this task.')),
+        SnackBar(
+          content: Text('No eligible members to assign this task.',
+              style: GoogleFonts.poppins()),
+        ),
       );
       return;
     }
 
     if (_assignedTo == null || _assignedTo!.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a member to assign.')),
+        SnackBar(
+          content: Text('Please select a member to assign.',
+              style: GoogleFonts.poppins()),
+        ),
       );
       return;
     }
 
     if (subtasks.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one subtask.')),
+        SnackBar(
+          content:
+              Text('Please add at least one subtask.', style: GoogleFonts.poppins()),
+        ),
       );
       return;
     }
@@ -91,7 +169,6 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
     try {
       final assigneeUsername = _assignedTo!.trim();
 
-      // same singleton db as the rest of the app
       db.addTaskToProject(
         widget.projectName,
         title: (_taskTitle ?? '').trim(),
@@ -99,24 +176,25 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
         subtasks: List<String>.from(subtasks),
       );
 
-      // ✅ Embedded: tell the parent to switch back to Project Status.
+      // Embedded: notify parent & close
       if (widget.embedded) {
         widget.onCreated?.call(true);
-        // Also close if this screen was pushed on a nested Navigator (no-op if none).
         Navigator.maybePop(context);
         return;
       }
 
-      // ✅ Standalone: just pop back (triggers didPopNext on ProjectStatus)
+      // Standalone: pop back if we can
       if (Navigator.canPop(context)) {
         Navigator.pop(context, true);
         return;
       }
 
-      // Ultra-rare fallback for standalone without a back stack
-      final course = (db.getAllProjects()
-                .firstWhere((p) => p['name'] == widget.projectName, orElse: () => const {})['course']
-              ?? 'N/A')
+      // Rare fallback: route to ProjectStatus
+      final course = (db
+                  .getAllProjects()
+                  .firstWhere((p) => p['name'] == widget.projectName,
+                      orElse: () => const {})['course'] ??
+              'N/A')
           .toString();
 
       Navigator.pushReplacementNamed(
@@ -130,7 +208,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       );
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to create task: $e')),
+        SnackBar(content: Text('Failed to create task: $e', style: GoogleFonts.poppins())),
       );
     }
   }
@@ -164,10 +242,34 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
         borderRadius: BorderRadius.circular(10),
         borderSide: BorderSide.none,
       ),
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
       filled: true,
       fillColor: fill,
+    );
+  }
+
+  Widget _buildLeaderChip(BuildContext context) {
+    if (_leaderUsername.isEmpty) return const SizedBox.shrink();
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+    final bg = isDark ? Colors.white10 : Colors.black12;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      decoration: BoxDecoration(
+        color: bg,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.workspace_premium, size: 18),
+          const SizedBox(width: 8),
+          Text(
+            'Leader: $_leaderFullName (@$_leaderUsername)',
+            style: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
+          ),
+        ],
+      ),
     );
   }
 
@@ -180,6 +282,10 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
         key: _formKey,
         child: ListView(
           children: [
+            // Leader context (read-only; visible to everyone on the team)
+            _buildLeaderChip(context),
+            const SizedBox(height: 16),
+
             TextFormField(
               decoration: _buildInputDecoration('Task Title', context),
               style: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
@@ -189,7 +295,7 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
             ),
             const SizedBox(height: 20),
 
-            if (members.isEmpty) ...[
+            if (_visibleAssignees.isEmpty) ...[
               Text(
                 'No eligible members to assign this task.',
                 style: GoogleFonts.poppins(color: theme.colorScheme.onSurface),
@@ -199,8 +305,9 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
               DropdownButtonFormField<String>(
                 decoration: _buildInputDecoration('Assign to', context),
                 value: _assignedTo,
-                items: members.map((username) {
-                  final name = db.getUserByUsername(username)?['fullName'] ?? username;
+                items: _visibleAssignees.map((username) {
+                  final name =
+                      db.getUserByUsername(username)?['fullName'] ?? username;
                   return DropdownMenuItem(
                     value: username,
                     child: Text(
@@ -291,6 +398,13 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // If a student was denied in initState(), just render nothing while the dialog handles exit.
+    if (_viewerRole == 'user' &&
+        _project.isNotEmpty &&
+        !_asSet((_project['members'])) .contains(_viewerUsername)) {
+      return const SizedBox.shrink();
+    }
+
     final content = _buildContent(context);
 
     if (widget.embedded) {
@@ -314,5 +428,19 @@ class _AssignTaskScreenState extends State<AssignTaskScreen> {
       ),
       body: content,
     );
+  }
+
+  // --- small helpers ---
+  Set<String> _asSet(dynamic raw) {
+    if (raw is List) {
+      return raw.map((e) => e.toString()).toSet();
+    } else if (raw is String) {
+      return raw
+          .split(',')
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty)
+          .toSet();
+    }
+    return {};
   }
 }

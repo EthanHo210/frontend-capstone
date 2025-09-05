@@ -5,8 +5,10 @@ import 'package:intl/intl.dart';
 import 'app_colors.dart';
 import 'mock_database.dart';
 import 'dashboard_scaffold.dart';
+import 'route_observer.dart'; // ⬅️ NEW: for RouteAware refresh
 
 class CourseTeamsScreen extends StatefulWidget {
+  /// Can be a course **name** or **id**. We’ll resolve either.
   final String selectedCourse;
   final bool embedded;
   final void Function(String projectName, String courseName)? onOpenProject;
@@ -26,13 +28,22 @@ class CourseTeamsScreen extends StatefulWidget {
   State<CourseTeamsScreen> createState() => _CourseTeamsScreenState();
 }
 
-class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
+class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
   final db = MockDatabase();
+
+  // Projects shown on this course
   List<Map<String, dynamic>> projects = [];
-  late String currentUser;
-  late String username;
+
+  // User
+  late String currentUser;   // may be email or username
+  late String username;      // normalized username
   late String fullName;
   late String userRole;
+
+  // Course meta (rich model)
+  Map<String, dynamic>? _course;  // resolved record
+  String get _courseName => (_course?['name'] ?? widget.selectedCourse).toString();
+  String? get _courseId => _course?['id']?.toString();
 
   @override
   void initState() {
@@ -41,31 +52,91 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
     username = db.getUsernameByEmail(currentUser) ?? currentUser;
     fullName = db.getFullNameByUsername(username) ?? username;
     userRole = db.getUserRole(currentUser);
+
+    _resolveCourse();
     _loadProjects();
   }
 
-  // 🔧 IMPORTANT: reload when the parent changes the selected course
+  // ⬇️ NEW: subscribe to route observer so when we pop back here, we reload.
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final route = ModalRoute.of(context);
+    if (route is PageRoute) {
+      routeObserver.subscribe(this, route);
+    }
+  }
+
+  @override
+  void dispose() {
+    routeObserver.unsubscribe(this);
+    super.dispose();
+  }
+
+  /// Called when a pushed route above this one is popped (we returned here)
+  @override
+  void didPopNext() {
+    _resolveCourse();
+    _loadProjects();
+  }
+  // ⬆️ NEW
+
   @override
   void didUpdateWidget(covariant CourseTeamsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.selectedCourse != widget.selectedCourse) {
+      _resolveCourse();
       _loadProjects();
     }
+  }
+
+  // Accept either id or name, prefer id match when available
+  void _resolveCourse() {
+    // Try id first
+    final byId = db.getCourseById(widget.selectedCourse);
+    if (byId != null) {
+      setState(() => _course = Map<String, dynamic>.from(byId));
+      return;
+    }
+    // Then by name (case-insensitive)
+    final byName = db.getCourseByName(widget.selectedCourse);
+    if (byName != null) {
+      setState(() => _course = Map<String, dynamic>.from(byName));
+      return;
+    }
+    // Fallback (legacy/course removed): just synthesize a name record
+    setState(() => _course = {
+      'id': null,
+      'name': widget.selectedCourse,
+      'semester': 'N/A',
+      'campus': 'N/A',
+      'lecturers': const <String>[],
+      'students': const <String>[],
+    });
   }
 
   void _loadProjects() {
     final allProjects = db.getAllProjects();
 
     final filtered = allProjects.where((project) {
-      final course = (project['course'] ?? 'N/A').toString();
-      if (course != widget.selectedCourse) return false;
+      // Prefer matching by courseId if present on the project and we have one
+      final projCourseId = (project['courseId'] ?? '').toString();
+      if (_courseId != null && _courseId!.isNotEmpty) {
+        if (projCourseId != _courseId) return false;
+      } else {
+        // Fallback: match by name
+        final courseName = (project['course'] ?? 'N/A').toString();
+        if (courseName != _courseName) return false;
+      }
+
+      // Only show projects the user can see:
+      // - admins/officers/teachers see all
+      // - users must be a member of the project
+      if (userRole == 'admin' || userRole == 'officer' || userRole == 'teacher') return true;
 
       final rawMembers = project['members'];
       final members = _parseMemberList(rawMembers);
-
-      return members.contains(username) ||
-          userRole == 'admin' ||
-          userRole == 'officer';
+      return members.contains(username);
     }).toList();
 
     setState(() {
@@ -117,7 +188,6 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
 
   Map<String, dynamic>? _projectForTracking() {
     if (projects.isEmpty) return null;
-    // Prefer most recent by startDate if present; otherwise just first.
     final copy = [...projects];
     copy.sort((a, b) {
       final aDt = DateTime.tryParse((a['startDate'] ?? '').toString()) ?? DateTime(1970);
@@ -127,37 +197,159 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
     return copy.first;
   }
 
+  // --- single place to start a new project (enables the button) ---
+  Future<void> _handleStartNewProject() async { // ⬅️ made async
+    if (!(userRole == 'admin' || userRole == 'officer' || userRole == 'teacher')) return;
+
+    // Prefer the embedded callback if parent provided it
+    if (widget.onStartNewProject != null) {
+      widget.onStartNewProject!();
+      return;
+    }
+
+    // Fallback: use the existing named route, refresh when coming back
+    await Navigator.pushNamed(context, '/start_new_project'); // ⬅️ await
+    if (mounted) _loadProjects(); // ⬅️ refresh
+  }
+
+  // ---------- UI bits ----------
+
+  Widget _courseHeader(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = Theme.of(context).textTheme.bodyLarge?.color;
+    final bodyColor  = Theme.of(context).textTheme.bodyMedium?.color;
+    final chipBg = isDark ? AppColors.blueText.withOpacity(0.10) : Colors.blue[50];
+
+    // Pull lecturers/students from rich model (works with id or name)
+    final lecturers = db.getLecturersForCourse(_courseId ?? _courseName);
+    final students  = db.getStudentsForCourse(_courseId ?? _courseName);
+
+    final semester = (_course?['semester'] ?? 'N/A').toString();
+    final campus   = (_course?['campus'] ?? 'N/A').toString();
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      child: Card(
+        color: isDark ? AppColors.blueText.withOpacity(0.08) : Colors.white,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Top row: Course name + quick actions
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      _courseName,
+                      style: GoogleFonts.poppins(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w700,
+                        color: titleColor,
+                      ),
+                    ),
+                  ),
+                  if (userRole == 'admin' || userRole == 'officer' || userRole == 'teacher')
+                    IconButton(
+                      tooltip: 'Manage Courses',
+                      icon: const Icon(Icons.manage_accounts, color: AppColors.blueText),
+                      onPressed: () {
+                        Navigator.pushNamed(context, '/manage_courses');
+                      },
+                    ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Semester: $semester • Campus: $campus',
+                style: GoogleFonts.poppins(fontSize: 12, color: bodyColor),
+              ),
+              const SizedBox(height: 10),
+              Wrap(
+                spacing: 8,
+                runSpacing: -6,
+                children: [
+                  Chip(
+                    label: Text('Lecturers: ${lecturers.length}'),
+                    backgroundColor: chipBg,
+                  ),
+                  Chip(
+                    label: Text('Students: ${students.length}'),
+                    backgroundColor: chipBg,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 6),
+              if (userRole == 'admin' || userRole == 'officer' || userRole == 'teacher')
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: TextButton.icon(
+                    onPressed: _handleStartNewProject,
+                    icon: const Icon(Icons.add, color: Colors.white),
+                    label: Text('Create Project',
+                        style: GoogleFonts.poppins(color: Colors.white)),
+                    style: TextButton.styleFrom(
+                      backgroundColor: AppColors.button,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _buildBody(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final titleColor = textTheme.bodyLarge?.color;
+    final bodyColor  = textTheme.bodyMedium?.color;
 
-    final titleColor = Theme.of(context).textTheme.bodyLarge?.color;
-    final bodyColor  = Theme.of(context).textTheme.bodyMedium?.color;
+    final header = _courseHeader(context);
 
     if (projects.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.folder_open, size: 64, color: textTheme.bodyLarge?.color),
-            const SizedBox(height: 12),
-            Text(
-              'No projects available in this course.',
-              textAlign: TextAlign.center,
-              style: GoogleFonts.poppins(
-                fontSize: 18,
-                color: textTheme.bodyLarge?.color,
-                fontWeight: FontWeight.w500,
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (widget.embedded && widget.onBack != null)
+            Padding(
+              padding: const EdgeInsets.only(left: 4, top: 4),
+              child: IconButton(
+                icon: const Icon(Icons.arrow_back),
+                tooltip: 'Back to courses',
+                onPressed: widget.onBack,
               ),
             ),
-            const SizedBox(height: 8),
-            if (userRole == 'admin' || userRole == 'officer' || userRole == 'teacher')
-              ElevatedButton(
-                onPressed: () => widget.onStartNewProject?.call(),
-                child: Text('Create Project', style: GoogleFonts.poppins()),
+          header,
+          const SizedBox(height: 8),
+          Expanded(
+            child: Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.folder_open, size: 64, color: textTheme.bodyLarge?.color),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No projects available in this course.',
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.poppins(
+                      fontSize: 18,
+                      color: textTheme.bodyLarge?.color,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  // 👇 intentionally no extra Create button here
+                ],
               ),
-          ],
-        ),
+            ),
+          ),
+        ],
       );
     }
 
@@ -165,18 +357,18 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         if (widget.embedded && widget.onBack != null)
-        Padding(
-          padding: const EdgeInsets.only(left: 4, top: 4),
-          child: IconButton(
-            icon: const Icon(Icons.arrow_back),
-            tooltip: 'Back to courses',
-            onPressed: widget.onBack,
+          Padding(
+            padding: const EdgeInsets.only(left: 4, top: 4),
+            child: IconButton(
+              icon: const Icon(Icons.arrow_back),
+              tooltip: 'Back to courses',
+              onPressed: widget.onBack,
+            ),
           ),
-        ),
-        
+        header,
         const SizedBox(height: 8),
 
-        // the list
+        // Project list
         Expanded(
           child: ListView.builder(
             padding: const EdgeInsets.all(16),
@@ -184,18 +376,27 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
             itemBuilder: (context, index) {
               final project = projects[index];
               final name = (project['name'] ?? 'Unknown').toString();
-              final course = (project['course'] ?? 'N/A').toString();
+              final courseShown = _courseName;
               final status = (project['status'] ?? 'Unknown').toString();
               final startDateFormatted = _formatDate(project['startDate']);
               final deadlineFormatted = _formatDate(project['deadline']);
 
               final memberIds = _parseMemberList(project['members']);
-              final studentNames = memberIds.map((id) {
+              final memberNames = memberIds.map((id) {
                 final full = db.getFullNameByUsername(id) ?? id;
                 return full.isNotEmpty
                     ? '${full[0].toUpperCase()}${full.substring(1)}'
                     : id;
               }).toList();
+
+              final leaderUser = (project['leader'] ?? '').toString();
+              final leaderName = leaderUser.isEmpty
+                  ? '—'
+                  : (db.getFullNameByUsername(leaderUser) ?? leaderUser);
+
+              final canSeeNames =
+                  (userRole == 'admin' || userRole == 'officer' || userRole == 'teacher') ||
+                  memberIds.contains(username);
 
               return Card(
                 color: isDark ? AppColors.blueText.withOpacity(0.10) : Colors.white,
@@ -205,11 +406,16 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
                   title: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(name,
-                          style: GoogleFonts.poppins(
-                              fontWeight: FontWeight.bold, fontSize: 16, color: titleColor)),
+                      Text(
+                        name,
+                        style: GoogleFonts.poppins(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: titleColor,
+                        ),
+                      ),
                       const SizedBox(height: 4),
-                      Text('Course: $course',
+                      Text('Course: $courseShown',
                           style: GoogleFonts.poppins(fontSize: 14, color: bodyColor)),
                       const SizedBox(height: 4),
                       Text('Start Date: $startDateFormatted\nDeadline: $deadlineFormatted',
@@ -222,15 +428,33 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
                             color: getStatusColor(status),
                           )),
                       const SizedBox(height: 6),
-                      if (studentNames.isNotEmpty)
+                      Text(
+                        'Leader: $leaderName',
+                        style: GoogleFonts.poppins(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: titleColor,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      if (canSeeNames && memberNames.isNotEmpty)
                         Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text('Students:',
-                                style: GoogleFonts.poppins(
-                                    fontWeight: FontWeight.w600, fontSize: 13, color: titleColor)),
-                            ...studentNames.map((n) => Text('- $n',
-                                style: GoogleFonts.poppins(fontSize: 12, color: titleColor))),
+                            Text(
+                              (memberIds.contains(username) && userRole == 'user')
+                                  ? 'Your Team:'
+                                  : 'Team Members:',
+                              style: GoogleFonts.poppins(
+                                fontWeight: FontWeight.w600,
+                                fontSize: 13,
+                                color: titleColor,
+                              ),
+                            ),
+                            ...memberNames.map((n) => Text(
+                                  '- $n',
+                                  style: GoogleFonts.poppins(fontSize: 12, color: titleColor),
+                                )),
                           ],
                         ),
                     ],
@@ -250,21 +474,19 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
                         )
                       : null,
                   onTap: () {
-                    // When embedded, ALWAYS use the embedded callback so we don't push a new route
-                    // (prevents ProjectStatusScreen from showing its own AppBar).
                     if (widget.embedded) {
-                      widget.onOpenProject?.call(name, course);
+                      widget.onOpenProject?.call(name, courseShown);
                       return;
                     }
-
-                    // Standalone fallback only when not embedded
                     Navigator.pushNamed(
                       context,
                       '/projectStatus',
-                      arguments: {'projectName': name, 'courseName': course},
+                      arguments: {
+                        'projectName': name,
+                        'courseName': courseShown,
+                      },
                     );
                   },
-
                 ),
               );
             },
@@ -310,7 +532,8 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
     if (userRole == 'admin' || userRole == 'officer') {
       switch (index) {
         case 0:
-          Navigator.pushNamed(context, '/start_new_project');
+          Navigator.pushNamed(context, '/start_new_project')
+              .then((_) => _loadProjects()); // ⬅️ refresh after return
           break;
         case 1:
           break;
@@ -327,7 +550,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
             '/projectStatus',
             arguments: {
               'projectName': (p['name'] ?? '').toString(),
-              'courseName': (p['course'] ?? '').toString(),
+              'courseName': _courseName,
             },
           );
           break;
@@ -341,7 +564,8 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
     } else if (userRole == 'teacher') {
       switch (index) {
         case 0:
-          Navigator.pushNamed(context, '/start_new_project');
+          Navigator.pushNamed(context, '/start_new_project')
+              .then((_) => _loadProjects()); // ⬅️ refresh after return
           break;
         case 1:
           break;
@@ -358,7 +582,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
             '/projectStatus',
             arguments: {
               'projectName': (p['name'] ?? '').toString(),
-              'courseName': (p['course'] ?? '').toString(),
+              'courseName': _courseName,
             },
           );
           break;
@@ -383,7 +607,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
             '/projectStatus',
             arguments: {
               'projectName': (p['name'] ?? '').toString(),
-              'courseName': (p['course'] ?? '').toString(),
+              'courseName': _courseName,
             },
           );
           break;
@@ -397,7 +621,6 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
   @override
   Widget build(BuildContext context) {
     final body = _buildBody(context);
-
     if (widget.embedded) return body;
 
     final titleWidget = Row(mainAxisSize: MainAxisSize.min, children: [
@@ -428,14 +651,12 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> {
     ]);
 
     return DashboardScaffold(
-      appBarTitle: titleWidget,       // shows the Together! title
+      appBarTitle: titleWidget,
       displayName: fullName,
-      body: body,                     // <- your _buildBody(context)
+      body: body,
       bottomItems: _navItemsForRole(),
       currentIndex: _projectsTabIndex(),
       onTap: _handleTap,
     );
-
   }
-
 }
