@@ -287,7 +287,9 @@ class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
 
           case '/update_password':
             return MaterialPageRoute(
-                builder: (_) => const UpdatePasswordScreen());
+              builder: (_) => const UpdatePasswordScreen(),
+              settings: settings,
+            );                   
 
           case '/about_app':
             return MaterialPageRoute(builder: (_) => const AboutAppScreen());
@@ -295,9 +297,17 @@ class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
           case '/help_center':
             return MaterialPageRoute(builder: (_) => const HelpCenterScreen());
 
-          case '/passwordreset':
+          case '/password_reset': // preferred route name
             return MaterialPageRoute(
-                builder: (_) => const PasswordResetScreen());
+              builder: (_) => const PasswordResetScreen(),
+              settings: settings,
+            );
+
+          case '/passwordreset': // legacy alias (kept so old links still work)
+            return MaterialPageRoute(
+              builder: (_) => const PasswordResetScreen(),
+              settings: settings,
+            );   
 
           case '/edit_project':
             final args = settings.arguments as Map<String, dynamic>;

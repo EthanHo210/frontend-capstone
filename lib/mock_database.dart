@@ -325,6 +325,19 @@ class MockDatabase {
     return byKey.values.toList();
   }
 
+  bool updatePasswordForUserEmail(String email, String newRawPassword) {
+    final user = _users.firstWhereOrNull((u) => u['email'] == email);
+    if (user == null) return false;
+
+    // Accept either raw or already-hashed (same convention as updateUser)
+    final isHashed = newRawPassword.length == 64 && !newRawPassword.contains(' ');
+    final hashed = isHashed
+        ? newRawPassword
+        : sha256.convert(utf8.encode(newRawPassword)).toString();
+
+    user['password'] = hashed;
+    return true;
+  }
 
   /// Add/remove lecturers (admin UI)
   bool addLecturerToCourse(String courseIdentifier, String username) {

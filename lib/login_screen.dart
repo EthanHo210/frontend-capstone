@@ -5,7 +5,6 @@ import 'main_dashboard.dart'; // ✅ For both teacher and student for now
 import 'app_colors.dart';
 
 class LoginScreen extends StatefulWidget {
-  // make these optional so existing code that used `const LoginScreen()` doesn't break
   final bool isDarkMode;
   final ValueChanged<bool>? onToggleTheme;
 
@@ -33,7 +32,7 @@ class _LoginScreenState extends State<LoginScreen> {
       return;
     }
 
-    bool isAuthenticated = _db.authenticate(usernameOrEmail, password);
+    final isAuthenticated = _db.authenticate(usernameOrEmail, password);
 
     if (isAuthenticated) {
       Navigator.pushReplacement(
@@ -41,7 +40,7 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(
           builder: (_) => MainDashboard(
             isDarkMode: widget.isDarkMode,
-            onToggleTheme: widget.onToggleTheme, // same logic as Login’s button
+            onToggleTheme: widget.onToggleTheme,
           ),
         ),
       );
@@ -67,7 +66,8 @@ class _LoginScreenState extends State<LoginScreen> {
   }
 
   void _goToResetPassword() {
-    Navigator.pushNamed(context, '/passwordreset');
+    // ⬇️ use the new route name we registered in main.dart
+    Navigator.pushNamed(context, '/password_reset');
   }
 
   @override
@@ -82,7 +82,6 @@ class _LoginScreenState extends State<LoginScreen> {
         backgroundColor: Colors.transparent,
         elevation: 0,
         actions: [
-          // simple icon-only button (keeps your earlier look)
           IconButton(
             icon: Icon(
               widget.isDarkMode ? Icons.wb_sunny : Icons.nightlight_round,
@@ -90,15 +89,6 @@ class _LoginScreenState extends State<LoginScreen> {
             ),
             onPressed: () => widget.onToggleTheme?.call(!widget.isDarkMode),
           ),
-
-          // If you'd prefer a button with an icon + text, swap in the TextButton.icon below:
-          /*
-          TextButton.icon(
-            onPressed: () => widget.onToggleTheme?.call(!widget.isDarkMode),
-            icon: Icon(widget.isDarkMode ? Icons.wb_sunny : Icons.nightlight_round, color: textColor),
-            label: Text(widget.isDarkMode ? 'Light' : 'Dark', style: TextStyle(color: textColor)),
-          ),
-          */
         ],
       ),
       body: SafeArea(
@@ -114,17 +104,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     'To',
                     style: GoogleFonts.kavoon(
-                      textStyle: TextStyle(
+                      textStyle: const TextStyle(
                         color: Colors.red,
                         fontSize: 35,
                         fontWeight: FontWeight.bold,
                         fontStyle: FontStyle.italic,
                         shadows: [
-                          Shadow(
-                            offset: Offset(4.0, 4.0),
-                            blurRadius: 1.5,
-                            color: Colors.white,
-                          ),
+                          Shadow(offset: Offset(4.0, 4.0), blurRadius: 1.5, color: Colors.white),
                         ],
                       ),
                     ),
@@ -132,17 +118,13 @@ class _LoginScreenState extends State<LoginScreen> {
                   Text(
                     'gether!',
                     style: GoogleFonts.kavoon(
-                      textStyle: TextStyle(
-                        color: const Color.fromRGBO(42, 49, 129, 1),
+                      textStyle: const TextStyle(
+                        color: Color.fromRGBO(42, 49, 129, 1),
                         fontSize: 35,
                         fontWeight: FontWeight.bold,
                         fontStyle: FontStyle.italic,
                         shadows: [
-                          Shadow(
-                            offset: Offset(4.0, 4.0),
-                            blurRadius: 1.5,
-                            color: Colors.white,
-                          ),
+                          Shadow(offset: Offset(4.0, 4.0), blurRadius: 1.5, color: Colors.white),
                         ],
                       ),
                     ),
@@ -152,10 +134,7 @@ class _LoginScreenState extends State<LoginScreen> {
               const SizedBox(height: 16),
               Text(
                 'Welcome!',
-                style: GoogleFonts.poppins(
-                  fontSize: 20,
-                  color: textColor,
-                ),
+                style: GoogleFonts.poppins(fontSize: 20, color: textColor),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 40),
@@ -166,19 +145,15 @@ class _LoginScreenState extends State<LoginScreen> {
               ElevatedButton(
                 onPressed: _login,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.blueText, // Always blue background
-                  foregroundColor: Colors.white,       // Always white text
+                  backgroundColor: AppColors.blueText,
+                  foregroundColor: Colors.white,
                   textStyle: const TextStyle(fontWeight: FontWeight.bold),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(20),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   elevation: 2,
                 ),
                 child: const Text('SIGN IN'),
               ),
-
-
               const SizedBox(height: 20),
               TextButton(
                 onPressed: _goToResetPassword,
@@ -205,9 +180,7 @@ class _LoginScreenState extends State<LoginScreen> {
       decoration: InputDecoration(
         hintText: hintText,
         filled: true,
-        fillColor: Theme.of(context).brightness == Brightness.dark
-            ? Colors.grey[800]
-            : Colors.blue[50],
+        fillColor: Theme.of(context).brightness == Brightness.dark ? Colors.grey[800] : Colors.blue[50],
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide.none,
