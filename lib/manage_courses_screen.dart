@@ -1,3 +1,4 @@
+// manage_courses_screen.dart
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
@@ -62,7 +63,7 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
     super.dispose();
   }
 
-  // ---------- styles (single source of truth for this screen) ----------
+  // ---------- styles ----------
   ElevatedButtonThemeData get _elevatedBtnTheme => ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.button,
@@ -91,15 +92,13 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
       );
 
   InputDecoration _inputDecoration(BuildContext context, String hint) {
-    final theme = Theme.of(context);
-    final fill = theme.brightness == Brightness.dark
-        ? Colors.grey[850]
-        : theme.colorScheme.surfaceVariant;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final fill = isDark ? const Color(0xFF2A2A2A) : const Color(0xFFE9F0FF);
+    final hintColor = isDark ? Colors.white70 : const Color(0xFF64748B);
+
     return InputDecoration(
       hintText: hint,
-      hintStyle: GoogleFonts.poppins(
-        color: theme.colorScheme.onSurface.withOpacity(0.6),
-      ),
+      hintStyle: GoogleFonts.poppins(color: hintColor),
       filled: true,
       fillColor: fill,
       border: OutlineInputBorder(
@@ -118,7 +117,6 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
     showDialog(
       context: context,
       builder: (context) => Theme(
-        // ensure dialog buttons also use our brand color
         data: Theme.of(context).copyWith(
           elevatedButtonTheme: _elevatedBtnTheme,
           textButtonTheme: _textBtnTheme,
@@ -144,12 +142,103 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
     );
   }
 
-  Widget _buildInput(TextEditingController controller, String hint,
-      {int maxLines = 1}) {
+  /// Determines if a course (year + semester) has already **ended**.
+  ///
+  /// Semesters:
+  /// - S1: Feb → May (same calendar year)
+  /// - S2: Jun → Sep (same calendar year)
+  /// - S3: Oct → Jan (**next** calendar year)
+  bool _isPastCourseYearSem(String year, String semCode) {
+    final now = DateTime.now();
+    final y = int.tryParse(year);
+    if (y == null) return false;
+
+    int endYear, endMonth;
+    switch (semCode.toUpperCase()) {
+      case 'S1':
+        endYear = y;
+        endMonth = 5; // May
+        break;
+      case 'S2':
+        endYear = y;
+        endMonth = 9; // September
+        break;
+      case 'S3':
+        endYear = y + 1; // crosses into next year
+        endMonth = 1; // January
+        break;
+      default:
+        endYear = y;
+        endMonth = 12;
+    }
+
+    int nextMonth = endMonth + 1;
+    int nextMonthYear = endYear;
+    if (nextMonth == 13) {
+      nextMonth = 1;
+      nextMonthYear += 1;
+    }
+    final endInstant =
+        DateTime(nextMonthYear, nextMonth, 1).subtract(const Duration(milliseconds: 1));
+
+    return now.isAfter(endInstant);
+  }
+
+  /// NEW: has this semester **started** yet? (If yes, creation is blocked.)
+  ///
+  /// Starts: S1 = Feb 1 (y), S2 = Jun 1 (y), S3 = Oct 1 (y).
+  bool _hasCourseSemesterStarted(String year, String semCode) {
+    final y = int.tryParse(year);
+    if (y == null) return false;
+
+    int startMonth;
+    switch (semCode.toUpperCase()) {
+      case 'S1':
+        startMonth = 2; // Feb
+        break;
+      case 'S2':
+        startMonth = 6; // Jun
+        break;
+      case 'S3':
+        startMonth = 10; // Oct
+        break;
+      default:
+        return false;
+    }
+
+    final start = DateTime(y, startMonth, 1);
+    final now = DateTime.now();
+    return now.isAfter(start) || now.isAtSameMomentAs(start);
+  }
+
+  Future<bool> _confirm(String title, String message) async {
+    return (await showDialog<bool>(
+          context: context,
+          builder: (_) => AlertDialog(
+            title: Text(title, style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+            content: Text(message, style: GoogleFonts.poppins()),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: Text('Cancel', style: GoogleFonts.poppins()),
+              ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(backgroundColor: AppColors.button),
+                child: Text('Confirm', style: GoogleFonts.poppins(color: Colors.white)),
+              ),
+            ],
+          ),
+        )) ??
+        false;
+  }
+
+  Widget _buildInput(TextEditingController controller, String hint, {int maxLines = 1}) {
+    final onSurface = Theme.of(context).colorScheme.onSurface;
     return TextField(
       controller: controller,
       maxLines: maxLines,
-      style: GoogleFonts.poppins(),
+      style: GoogleFonts.poppins(color: onSurface),
       decoration: _inputDecoration(context, hint),
     );
   }
@@ -160,20 +249,23 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
     required List<String> items,
     required ValueChanged<String?> onChanged,
   }) {
-    final theme = Theme.of(context);
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final onSurface = Theme.of(context).colorScheme.onSurface;
+
     return DropdownButtonFormField<String>(
       isExpanded: true,
       value: value,
       items: items
           .map((s) => DropdownMenuItem<String>(
                 value: s,
-                child: Text(s, style: GoogleFonts.poppins()),
+                child: Text(s, style: GoogleFonts.poppins(color: onSurface)),
               ))
           .toList(),
       onChanged: onChanged,
-      style: GoogleFonts.poppins(),
+      style: GoogleFonts.poppins(color: onSurface),
       decoration: _inputDecoration(context, hint),
-      dropdownColor: theme.cardColor,
+      dropdownColor: isDark ? const Color(0xFF2B2B2B) : Colors.white,
+      iconEnabledColor: onSurface,
     );
   }
 
@@ -276,7 +368,9 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
 
     for (final c in db.getAllCoursesRich()) {
       if (excludeCourseId != null &&
-          (c['id'] ?? '').toString() == excludeCourseId) continue;
+          (c['id'] ?? '').toString() == excludeCourseId) {
+        continue;
+      }
 
       final existingPid =
           _prefixIdFromName((c['name'] ?? '').toString()).toUpperCase();
@@ -489,17 +583,32 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
     showDialog(
       context: context,
       builder: (ctx) {
+        final isDark = Theme.of(ctx).brightness == Brightness.dark;
+        final surface = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+        final onSurface = isDark ? Colors.white : const Color(0xFF1F2450);
+        
         return Theme(
           data: Theme.of(ctx).copyWith(
+            colorScheme: Theme.of(ctx).colorScheme.copyWith(
+              surface: surface,
+              onSurface: onSurface,
+            ),
             elevatedButtonTheme: _elevatedBtnTheme,
             textButtonTheme: _textBtnTheme,
             outlinedButtonTheme: _outlinedBtnTheme,
+            dialogTheme: DialogThemeData(backgroundColor: surface),
           ),
           child: StatefulBuilder(builder: (ctx, setDlg) {
             return AlertDialog(
-              title: Text('Add Course',
-                  style:
-                      GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+              backgroundColor: surface,
+              surfaceTintColor: Colors.transparent,
+              title: Text(
+                'Add Course',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: onSurface,
+                ),
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -556,7 +665,7 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
                   child: Text('Cancel', style: GoogleFonts.poppins()),
                 ),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     final prefix = prefixCtl.text.trim().toUpperCase();
                     final id = idCtl.text.trim();
                     final name = nameCtl.text.trim().toTitleCase();
@@ -576,6 +685,12 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
                       return;
                     }
 
+                    // NEW RULE: Only allow creating BEFORE the semester starts.
+                    if (_hasCourseSemesterStarted(year, semCode)) {
+                      _showError('You can only create a course before the semester starts.');
+                      return;
+                    }
+
                     final semesterDisplay = '$year $semCode';
                     if (_existsCourseConflict(
                       prefix: prefix,
@@ -588,6 +703,12 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
                           'A course with this Prefix & ID already exists in $semesterDisplay at $cam.');
                       return;
                     }
+
+                    final ok = await _confirm(
+                      'Create Course',
+                      'Create $prefix$id – $name for $semesterDisplay at $cam?',
+                    );
+                    if (!ok) return;
 
                     db.createCourse(
                       name: '$prefix$id - $name',
@@ -675,10 +796,8 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
   }
 
   void _modifyCourse(Map<String, dynamic> course) {
-    // Use the state’s context for SnackBars after the dialog closes
     final rootCtx = context;
 
-    // Parse legacy friendly parts for the editor
     final oldCourseName = (course['name'] ?? '').toString();
     final parts = oldCourseName.split(RegExp(r'\s\-\s'));
     final prefixAndId = parts.isNotEmpty ? parts[0].trim() : '';
@@ -703,7 +822,6 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
     final TextEditingController newDesc = TextEditingController(
         text: (course['description'] ?? '').toString());
 
-    // editable member lists
     List<String> lecturers =
         List<String>.from(course['lecturers'] ?? const []);
     List<String> students =
@@ -712,17 +830,32 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
     showDialog(
       context: rootCtx,
       builder: (dialogCtx) {
+        final isDark = Theme.of(dialogCtx).brightness == Brightness.dark;
+        final surface = isDark ? const Color(0xFF1E1E1E) : Colors.white;
+        final onSurface = isDark ? Colors.white : const Color(0xFF1F2450);
+
         return Theme(
           data: Theme.of(dialogCtx).copyWith(
+            colorScheme: Theme.of(dialogCtx).colorScheme.copyWith(
+              surface: surface,
+              onSurface: onSurface,
+            ),
             elevatedButtonTheme: _elevatedBtnTheme,
             textButtonTheme: _textBtnTheme,
             outlinedButtonTheme: _outlinedBtnTheme,
+            dialogTheme: DialogThemeData(backgroundColor: surface),
           ),
           child: StatefulBuilder(builder: (dialogCtx, setDialogState) {
             return AlertDialog(
-              title: Text('Edit Course',
-                  style:
-                      GoogleFonts.poppins(fontWeight: FontWeight.w600)),
+              backgroundColor: surface,
+              surfaceTintColor: Colors.transparent,
+              title: Text(
+                'Edit Course',
+                style: GoogleFonts.poppins(
+                  fontWeight: FontWeight.w600,
+                  color: onSurface,
+                ),
+              ),
               content: SingleChildScrollView(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
@@ -780,7 +913,7 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
                   child: Text('Cancel', style: GoogleFonts.poppins()),
                 ),
                 ElevatedButton(
-                  onPressed: () {
+                  onPressed: () async {
                     final p = newPrefix.text.trim().toUpperCase();
                     final i = newId.text.trim();
                     final n = newName.text.trim().toTitleCase();
@@ -800,6 +933,12 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
                       return;
                     }
 
+                    // Keep past-course guard for edits.
+                    if (_isPastCourseYearSem(yr, semCode)) {
+                      _showError('Cannot save a course in the past.');
+                      return;
+                    }
+
                     final newFullName = '$p$i - $n';
                     final semesterDisplay = '$yr $semCode';
 
@@ -815,6 +954,12 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
                           'A course with this Prefix & ID already exists in $semesterDisplay at $cam.');
                       return;
                     }
+
+                    final ok = await _confirm(
+                      'Save Changes',
+                      'Update $p$i – $n to $semesterDisplay at $cam?',
+                    );
+                    if (!ok) return;
 
                     db.updateCourse(
                       course['id'].toString(),
@@ -849,7 +994,6 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
   @override
   Widget build(BuildContext context) {
     final rich = db.getAllCoursesRich();
-    // filter by search (course name)
     final filtered = rich
         .where((c) => (c['name'] ?? '')
             .toString()
@@ -863,7 +1007,6 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
     final onSurface = theme.colorScheme.onSurface;
 
     final listOnly = Theme(
-      // force our button theming within the list as well
       data: theme.copyWith(
         elevatedButtonTheme: _elevatedBtnTheme,
         textButtonTheme: _textBtnTheme,
@@ -949,7 +1092,6 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
                     );
                   },
                 ),
-              // Bottom padding so the last card isn’t hidden by bottom nav.
               SizedBox(height: widget.embedded ? kBottomNavigationBarHeight : 0),
             ],
           ),
@@ -957,7 +1099,6 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
       ),
     );
 
-    // In embedded mode we can’t show a Scaffold FAB; put a mini FAB over content.
     if (widget.embedded) {
       return Stack(
         children: [
@@ -968,7 +1109,7 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
             child: FloatingActionButton.extended(
               onPressed: _openAddCourseDialog,
               icon: const Icon(Icons.add),
-              label: Text('Add', style: GoogleFonts.poppins()),
+              label: Text('Add Course', style: GoogleFonts.poppins()),
               backgroundColor: AppColors.button,
               foregroundColor: Colors.white,
             ),
@@ -977,7 +1118,6 @@ class _ManageCoursesScreenState extends State<ManageCoursesScreen> {
       );
     }
 
-    // Standalone full-screen mode (route)
     return Theme(
       data: theme.copyWith(
         elevatedButtonTheme: _elevatedBtnTheme,

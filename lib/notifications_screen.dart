@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
-import 'package:provider/provider.dart'; // if you use provider; otherwise pass store manually
+// if you use provider; otherwise pass store manually
 import 'data/notification_store.dart';
 import 'mock_database.dart';
 

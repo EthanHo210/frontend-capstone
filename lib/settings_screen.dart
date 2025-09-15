@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:shared_preferences/shared_preferences.dart'; // <-- NEW
 import 'app_colors.dart';
-import 'mock_database.dart'; // <-- NEW
+import 'mock_database.dart';
 
 class SettingsScreen extends StatefulWidget {
   final bool isAdmin;
@@ -40,7 +41,7 @@ class SettingsScreen extends StatefulWidget {
 class _SettingsScreenState extends State<SettingsScreen> {
   late bool _isDarkMode;
 
-  // --- NEW: notifications toggle state
+  // Notifications toggle state
   String _username = '';
   bool _notifEnabled = true;
 
@@ -72,7 +73,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
-  // --- NEW: persist notifications toggle
   void _handleNotificationsChange(bool value) {
     setState(() => _notifEnabled = value);
     if (_username.isNotEmpty) {
@@ -129,18 +129,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
             style: GoogleFonts.poppins(fontSize: 18, fontWeight: FontWeight.bold, color: textColor)),
         const SizedBox(height: 10),
 
-        // --- NEW: actual Notifications toggle
         SwitchListTile(
           value: _notifEnabled,
           onChanged: _handleNotificationsChange,
           title: Text('Notifications', style: GoogleFonts.poppins(fontSize: 16, color: textColor)),
           secondary: Icon(Icons.notifications, color: textColor),
-          activeColor: AppColors.blueText,
+          activeThumbColor: AppColors.blueText,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         ),
 
-        // Theme toggle
         SwitchListTile(
           value: _isDarkMode,
           onChanged: _handleThemeChange,
@@ -196,13 +194,18 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 title: Text('Confirm Logout', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
                 content: Text('Are you sure you want to log out?', style: GoogleFonts.poppins()),
                 actions: [
-                  TextButton(onPressed: () => Navigator.of(context).pop(), 
-                  child: Text('Cancel', style: GoogleFonts.poppins(color: Colors.grey[600]))
-                ),
                   TextButton(
-                    onPressed: () {
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('Cancel', style: GoogleFonts.poppins(color: Colors.grey[600])),
+                  ),
+                  TextButton(
+                    onPressed: () async {
                       Navigator.of(context).pop();
-                      MockDatabase().logout();  
+                      // Clear persisted session + mock session
+                      final prefs = await SharedPreferences.getInstance();
+                      await prefs.remove('loggedInUser');
+                      MockDatabase().logout();
+                      if (!mounted) return;
                       Navigator.pushNamedAndRemoveUntil(context, '/login', (route) => false);
                     },
                     child: Text('Log Out', style: GoogleFonts.poppins(color: AppColors.blueText)),

@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math';
-import 'package:flutter/foundation.dart';
 import '../data/notification_store.dart';
 import '../models/app_notification.dart';
 import '../events/app_events.dart';

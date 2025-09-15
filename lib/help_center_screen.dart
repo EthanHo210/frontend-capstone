@@ -8,7 +8,7 @@ class HelpCenterScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final textColor = Theme.of(context).textTheme.bodyLarge?.color ?? Theme.of(context).colorScheme.onBackground;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color ?? Theme.of(context).colorScheme.onSurface;
 
     final content = _HelpCenterContent (textColor: textColor);
 
@@ -39,14 +39,14 @@ class HelpCenterScreen extends StatelessWidget {
 
 class _HelpCenterContent extends StatelessWidget {
   final Color textColor;
-  const _HelpCenterContent({super.key, required this.textColor});
+  const _HelpCenterContent({required this.textColor});
   
 
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final titleColor = textTheme.titleLarge?.color ?? Theme.of(context).colorScheme.onBackground;
-    final bodyColor = textTheme.bodyMedium?.color ?? Theme.of(context).colorScheme.onBackground;
+    final titleColor = textTheme.titleLarge?.color ?? Theme.of(context).colorScheme.onSurface;
+    final bodyColor = textTheme.bodyMedium?.color ?? Theme.of(context).colorScheme.onSurface;
     final iconColor = Theme.of(context).iconTheme.color ?? titleColor;
 
     return Padding(

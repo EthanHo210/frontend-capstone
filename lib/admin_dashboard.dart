@@ -31,7 +31,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
         color: theme.textTheme.bodyMedium?.color?.withOpacity(0.6),
       ),
       filled: true,
-      fillColor: theme.colorScheme.surfaceVariant,
+      fillColor: theme.colorScheme.surfaceContainerHighest,
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: BorderSide.none,
@@ -95,7 +95,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: selectedRole,
+                    initialValue: selectedRole,
                     items: const ['user', 'teacher']
                         .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                         .toList(),
@@ -183,7 +183,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                   const SizedBox(height: 12),
                   DropdownButtonFormField<String>(
-                    value: selectedRole,
+                    initialValue: selectedRole,
                     items: const ['user', 'teacher']
                         .map((r) => DropdownMenuItem(value: r, child: Text(r)))
                         .toList(),

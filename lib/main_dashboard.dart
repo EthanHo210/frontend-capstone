@@ -370,14 +370,14 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
         final all = db.getAllProjects();
         final now = DateTime.now();
 
-        bool _isActive(Map<String, dynamic> p) {
+        bool isActive(Map<String, dynamic> p) {
           final raw = (p['deadline'] ?? '').toString();
           final d = DateTime.tryParse(raw);
           if (d == null) return true; // unknown dates → show
           return d.isAfter(now);
         }
 
-        final active = all.where(_isActive).toList()
+        final active = all.where(isActive).toList()
           ..sort((a, b) {
             final ad = DateTime.tryParse((a['deadline'] ?? '').toString()) ?? DateTime(2100);
             final bd = DateTime.tryParse((b['deadline'] ?? '').toString()) ?? DateTime(2100);
@@ -604,7 +604,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
     _extraIndex.clear();
     final extras = <Widget>[];
 
-    Widget _addExtra(String key, Widget child, String title) {
+    Widget addExtra(String key, Widget child, String title) {
       final wrapped = _wrapWithHeader(
         child,
         title: title,
@@ -620,12 +620,12 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
       return wrapped;
     }
 
-    _addExtra('about', const AboutAppScreen(embedded: true), 'About App');
-    _addExtra('help', const HelpCenterScreen(embedded: true), 'Help Center');
-    _addExtra('members', UserLogsScreen(), 'User Directory');
-    _addExtra('admin', const ManageUsersScreen(embedded: true), 'Manage Users');
+    addExtra('about', const AboutAppScreen(embedded: true), 'About App');
+    addExtra('help', const HelpCenterScreen(embedded: true), 'Help Center');
+    addExtra('members', UserLogsScreen(), 'User Directory');
+    addExtra('admin', const ManageUsersScreen(embedded: true), 'Manage Users');
 
-    _addExtra(
+    addExtra(
       'courses',
       ManageCoursesScreen(
         embedded: true,
@@ -636,7 +636,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
       'Manage Courses',
     );
 
-    _addExtra(
+    addExtra(
       'courseTeams',
       (_selectedCourseForTeams == null)
           ? Center(
@@ -659,11 +659,13 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
                   _selectedIndex = _indexOfTrackingTab(); // jump to Project Status tab
                 });
               },
+              // ✅ keep dashboard chrome when starting a project from here
+              onStartNewProject: _showStartNewSheet,
             ),
       'Projects List',
     );
 
-    _addExtra(
+    addExtra(
       'assignLeader',
       (_assignLeaderProjectName == null)
           ? Center(
@@ -700,7 +702,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
       'Assign Leader',
     );
 
-    _addExtra(
+    addExtra(
       'assignTask',
       (_assignTaskProjectName == null)
           ? Center(/* ... */)
@@ -721,13 +723,41 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
       'Assign Task',
     );
 
-    _addExtra(
+    addExtra(
       'updatePassword',
       const UpdatePasswordScreen(embedded: true),
       'Update Password',
     );
 
     return [...basePages, ...extras];
+  }
+
+  Widget? _buildFab() {
+  // Show FAB only on the Projects tab
+    if (_selectedIndex != _projectsTabIndex()) return null;
+
+    // Admin/Officer/Teacher: add project
+    if (_userRole == 'admin' || _userRole == 'officer' || _userRole == 'teacher') {
+      return FloatingActionButton.extended(
+        onPressed: _showStartNewSheet,
+        backgroundColor: AppColors.blueText,
+        foregroundColor: Colors.white,
+        icon: const Icon(Icons.add),
+        label: Text(
+          'Add Project',
+          style: GoogleFonts.poppins(fontWeight: FontWeight.w600),
+        ),
+        tooltip: 'Add Project',
+      );
+    }
+
+    // Students: keep your existing FAB (or switch to extended if you want a label too)
+    return FloatingActionButton(
+      backgroundColor: AppColors.blueText,
+      onPressed: _openMembersEmbedded,
+      tooltip: 'View Members',
+      child: const Icon(Icons.group, color: Colors.white),
+    );
   }
 
   @override
@@ -809,25 +839,7 @@ class _MainDashboardState extends State<MainDashboard> with RouteAware {
       onTap: (i) {
         if (i < pages.length) _onItemTapped(i);
       },
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: AppColors.blueText,
-        onPressed: () {
-          if (_userRole == 'admin' || _userRole == 'officer' || _userRole == 'teacher') {
-            _showStartNewSheet(); // Start New is a FAB
-          } else {
-            _openMembersEmbedded(); // students keep quick access to Members
-          }
-        },
-        tooltip: (_userRole == 'admin' || _userRole == 'officer' || _userRole == 'teacher')
-            ? 'Start New Project'
-            : 'View Members',
-        child: Icon(
-          (_userRole == 'admin' || _userRole == 'officer' || _userRole == 'teacher')
-              ? Icons.add
-              : Icons.group,
-          color: Colors.white,
-        ),
-      ),
+      floatingActionButton: _buildFab(),
     );
   }
 }

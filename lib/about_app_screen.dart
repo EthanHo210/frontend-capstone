@@ -8,7 +8,7 @@ class AboutAppScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     // fallback so color is never null
-    final textColor = Theme.of(context).textTheme.bodyLarge?.color ?? Theme.of(context).colorScheme.onBackground;
+    final textColor = Theme.of(context).textTheme.bodyLarge?.color ?? Theme.of(context).colorScheme.onSurface;
 
     final content = _AboutAppContent(textColor: textColor);
 

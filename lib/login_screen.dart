@@ -3,6 +3,7 @@ import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
 import 'main_dashboard.dart'; // ✅ For both teacher and student for now
 import 'app_colors.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 class LoginScreen extends StatefulWidget {
   final bool isDarkMode;
@@ -23,7 +24,7 @@ class _LoginScreenState extends State<LoginScreen> {
   final TextEditingController _passwordController = TextEditingController();
   final MockDatabase _db = MockDatabase();
 
-  void _login() {
+  Future<void> _login() async {
     final usernameOrEmail = _usernameOrEmailController.text.trim();
     final password = _passwordController.text;
 
@@ -35,6 +36,11 @@ class _LoginScreenState extends State<LoginScreen> {
     final isAuthenticated = _db.authenticate(usernameOrEmail, password);
 
     if (isAuthenticated) {
+      // persist the session
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('loggedInUser', usernameOrEmail);
+
+      if (!mounted) return;
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(
@@ -48,6 +54,7 @@ class _LoginScreenState extends State<LoginScreen> {
       _showError('Invalid email or password.');
     }
   }
+
 
   void _showError(String message) {
     showDialog(

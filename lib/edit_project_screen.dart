@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:multi_select_flutter/multi_select_flutter.dart';
 import 'package:intl/intl.dart';
+
 import 'mock_database.dart';
 
 class EditProjectScreen extends StatefulWidget {
@@ -33,45 +34,155 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
   late TextEditingController _nameController;
   late DateTime _deadline;
   String? _selectedCourse;
-  List<String> _selectedMembers = [];
 
-  late List<Map<String, dynamic>> allStudents;
-  late List<String> availableCourses;
+  /// New + original members (as usernames)
+  late List<String> _selectedMembers;
+  late List<String> _originalMembers;
+
+  /// All selectable users (username/fullName/role), excluding admin/officer
+  late List<Map<String, String>> _allUsers;
+
+  /// Available courses (full names like "COSC1234 - Engineering")
+  late List<String> _availableCourses;
+
+  /// Cache current editor role
+  late String _editorRole;
 
   @override
   void initState() {
     super.initState();
 
-    final role = db.getUserRole(db.currentLoggedInUser ?? '');
-    if (role != 'teacher' && role != 'admin' && role != 'officer') {
-      // show an error and navigate back to safe route (runs after frame)
-      Future.microtask(() => _showUnauthorized());
+    // Gate access
+    _editorRole = db.getUserRole(db.currentLoggedInUser ?? '');
+    if (_editorRole != 'teacher' && _editorRole != 'admin' && _editorRole != 'officer') {
+      Future.microtask(_showUnauthorized);
     }
 
-    _nameController = TextEditingController(text: widget.project['name']?.toString() ?? '');
-    _selectedCourse = widget.project['course']?.toString();
-    _deadline = DateTime.tryParse(widget.project['deadline']?.toString() ?? '') ?? DateTime.now();
+    _nameController = TextEditingController(text: (widget.project['name'] ?? '').toString());
+    _selectedCourse = (widget.project['course'] ?? '').toString();
+    _deadline = DateTime.tryParse((widget.project['deadline'] ?? '').toString()) ?? DateTime.now();
 
-    final rawMembers = widget.project['members'];
-    _selectedMembers = rawMembers is String
-        ? rawMembers.split(',').map((id) => id.trim()).where((id) => id.isNotEmpty).toList()
-        : (rawMembers is List ? List<String>.from(rawMembers.map((e) => e.toString())) : <String>[]);
+    // Parse members from string or list into usernames
+    _originalMembers = _parseMemberList(widget.project['members']);
+    _selectedMembers = List<String>.from(_originalMembers);
 
-    // Filter only non-admin/non-officer users (students/teachers)
-    allStudents = db.getAllUsers().where((user) {
-      final r = user['role']?.toString() ?? '';
-      return r != 'admin' && r != 'officer';
-    }).toList();
+    // Build users list (exclude admin/officer)
+    _allUsers = db
+        .getAllUsers()
+        .where((u) => (u['role'] ?? '') != 'admin' && (u['role'] ?? '') != 'officer')
+        .map((u) => {
+              'username': (u['username'] ?? '').toString(),
+              'fullName': (u['fullName'] ?? u['username'] ?? '').toString(),
+              'role': (u['role'] ?? 'user').toString(),
+            })
+        .toList();
 
-    // ensure we have a safe list of available courses
-    final rawCourses = db.getCourses();
-    if (rawCourses == null) {
-      availableCourses = <String>[];
-    } else if (rawCourses is List<String>) {
-      availableCourses = List<String>.from(rawCourses);
+    // Build course list from rich model; teachers see only their courses
+    final currentId = db.currentLoggedInUser ?? '';
+    final currentUsername = db.getUsernameByEmail(currentId) ?? currentId;
+
+    final rich = db.getAllCoursesRich();
+    if (_editorRole == 'teacher') {
+      _availableCourses = rich
+          .where((c) => _asStringList(c['lecturers']).contains(currentUsername))
+          .map((c) => (c['name'] ?? '').toString())
+          .where((s) => s.isNotEmpty)
+          .toList();
     } else {
-      availableCourses = List<String>.from((rawCourses as Iterable).map((e) => e.toString()));
+      _availableCourses = rich
+          .map((c) => (c['name'] ?? '').toString())
+          .where((s) => s.isNotEmpty)
+          .toList();
     }
+
+    // Fallback to legacy list if needed
+    if (_availableCourses.isEmpty) {
+      final rawCourses = db.getCourses();
+      _availableCourses = (rawCourses is Iterable)
+          ? rawCourses.map((e) => e.toString()).toList()
+          : <String>[];
+    }
+
+    // If the current project course isn't in filtered list, still keep it visible (read/edit)
+    if (_selectedCourse != null &&
+        _selectedCourse!.isNotEmpty &&
+        !_availableCourses.contains(_selectedCourse)) {
+      _availableCourses = [..._availableCourses, _selectedCourse!];
+    }
+
+    // Prune members to the selected course's roster (if any) so the multi-select starts valid.
+    _pruneMembersToCourse();
+  }
+
+  // ---------- helpers ----------
+
+  List<String> _parseMemberList(dynamic raw) {
+    if (raw == null) return const [];
+    if (raw is List) return raw.map((e) => e.toString()).toList();
+    if (raw is String) {
+      return raw.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
+    return const [];
+  }
+
+  List<String> _asStringList(dynamic value) {
+    if (value == null) return const [];
+    if (value is List) return value.map((e) => e.toString()).toList();
+    if (value is String) {
+      return value.split(',').map((e) => e.trim()).where((e) => e.isNotEmpty).toList();
+    }
+    return const [];
+  }
+
+  Map<String, dynamic>? _findCourseRichByName(String? name) {
+    if (name == null || name.isEmpty) return null;
+    for (final c in db.getAllCoursesRich()) {
+      if ((c['name'] ?? '').toString() == name) return c;
+    }
+    return null;
+  }
+
+  /// Course roster = students + lecturers from the rich course record
+  List<Map<String, String>> _courseUserList(String? courseName) {
+    final rich = _findCourseRichByName(courseName);
+    if (rich == null) return const [];
+
+    final courseStudents = _asStringList(rich['students']).toSet();
+    final courseLecturers = _asStringList(rich['lecturers']).toSet();
+
+    final inCourse = <Map<String, String>>[];
+    for (final u in _allUsers) {
+      final un = u['username']!;
+      if (courseStudents.contains(un) || courseLecturers.contains(un)) {
+        inCourse.add(u);
+      }
+    }
+    return inCourse;
+  }
+
+  List<MultiSelectItem<String>> _buildItemsForCourse(String? courseName) {
+    final users = _courseUserList(courseName);
+    return users.map((user) {
+      final isTeacher = user['role'] == 'teacher';
+      final label = isTeacher
+          ? '${user['fullName']} (${user['username']}) • teacher'
+          : '${user['fullName']} (${user['username']})';
+      return MultiSelectItem<String>(user['username']!, label);
+    }).toList();
+  }
+
+  void _pruneMembersToCourse() {
+    final roster = _courseUserList(_selectedCourse).map((u) => u['username']!).toSet();
+    setState(() {
+      _selectedMembers = _selectedMembers.where(roster.contains).toList();
+    });
+  }
+
+  bool _hasLecturer(List<String> members) {
+    for (final m in members) {
+      if (db.getUserRole(m) == 'teacher') return true;
+    }
+    return false;
   }
 
   Future<void> _pickDateTime() async {
@@ -80,15 +191,15 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
       initialDate: _deadline,
       firstDate: DateTime(2020),
       lastDate: DateTime(2100),
+      builder: (ctx, child) => Theme(data: Theme.of(context), child: child!),
     );
-
     if (pickedDate == null) return;
 
     final pickedTime = await showTimePicker(
       context: context,
       initialTime: TimeOfDay.fromDateTime(_deadline),
+      builder: (ctx, child) => Theme(data: Theme.of(context), child: child!),
     );
-
     if (pickedTime == null) return;
 
     setState(() {
@@ -103,7 +214,6 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
   }
 
   void _showUnauthorized() {
-    // If embedded, just close the dialog and leave it to the parent to handle closing.
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -113,8 +223,7 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
           TextButton(
             child: const Text('OK'),
             onPressed: () {
-              Navigator.of(context).pop(); // close dialog
-              // only navigate away automatically when running as a standalone route
+              Navigator.of(context).pop();
               if (!widget.embedded) {
                 Navigator.of(context).popUntil((route) => route.isFirst);
               }
@@ -126,11 +235,16 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
   }
 
   Future<void> _confirmSave() async {
-    // validate form
     if (!(_formKey.currentState?.validate() ?? false)) return;
 
     if (_selectedCourse == null || _selectedCourse!.isEmpty) {
       _showError('Please select a course.');
+      return;
+    }
+
+    // If the editor is not a teacher, ensure at least one lecturer remains on the project.
+    if (_editorRole != 'teacher' && !_hasLecturer(_selectedMembers)) {
+      _showError('Please include at least one lecturer in the project.');
       return;
     }
 
@@ -163,34 +277,38 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
 
   void _performSave() {
     try {
-      final index = db.getAllProjects().indexWhere((p) => p['name'] == widget.project['name']);
-      if (index == -1) {
+      final projects = db.getAllProjects();
+      final idx = projects.indexWhere((p) => p['name'] == widget.project['name']);
+      if (idx == -1) {
         _showError('Could not find the project to update.');
         return;
       }
 
-      // preserve createdAt if present
+      // Preserve createdAt if present
       final createdAt = widget.project['createdAt'] ?? DateTime.now().toIso8601String();
 
-      // only the fields we intend to update
-      final updatedFields = {
+      // Compute diffs for user project-info updates
+      final oldMembers = Set<String>.from(_originalMembers);
+      final newMembers = Set<String>.from(_selectedMembers);
+      final removed = oldMembers.difference(newMembers);
+      final added = newMembers.difference(oldMembers);
+
+      // Update project
+      final updated = Map<String, dynamic>.from(projects[idx] ?? {});
+      updated.addAll({
         'name': _nameController.text.trim(),
         'course': _selectedCourse,
-        'members': _selectedMembers,
+        // DB expects CSV string for members
+        'members': _selectedMembers.join(','),
         'startDate': widget.project['startDate'] ?? DateTime.now().toIso8601String(),
         'deadline': _deadline.toIso8601String(),
         'status': db.calculateStatus(_deadline.toIso8601String(), 0),
         'createdAt': createdAt,
-      };
+      });
+      projects[idx] = updated; // write back
 
-      // Merge updated fields into the existing project map to avoid losing other keys.
-      final existingProject = Map<String, dynamic>.from(db.getAllProjects()[index] ?? {});
-      existingProject.addAll(updatedFields);
-      db.getAllProjects()[index] = existingProject;
-
-      // Clear project info for users who were in the old project (match by "name")
-      for (var user in db.getAllUsers()) {
-        final username = user['username']?.toString() ?? '';
+      // Clear project-info for removed members
+      for (final username in removed) {
         final info = db.getProjectInfoForUser(username);
         if (info != null && (info['name']?.toString() == widget.project['name']?.toString())) {
           db.setProjectInfoForUser(username, {
@@ -203,28 +321,27 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
         }
       }
 
-      // Set project info for newly selected members
-      for (final member in _selectedMembers) {
-        db.setProjectInfoForUser(member, {
-          'name': existingProject['name'],
+      // Set project-info for newly added members
+      for (final username in added) {
+        db.setProjectInfoForUser(username, {
+          'name': updated['name'],
           'completion': '0%',
-          'status': existingProject['status'],
-          'course': existingProject['course'],
-          'deadline': existingProject['deadline'],
+          'status': updated['status'],
+          'course': updated['course'],
+          'deadline': updated['deadline'],
         });
       }
 
-      // feedback + close
-      final successMessage = 'Project "${existingProject['name']}" saved.';
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(successMessage), backgroundColor: Colors.green));
+        ScaffoldMessenger.of(context).clearSnackBars();
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Project "${updated['name']}" saved.'), backgroundColor: Colors.green),
+        );
       }
 
-      // call optional callback for embedded usage
       widget.onSaved?.call();
 
-      // In embedded mode, do NOT pop routes — let parent decide how/when to hide embedded view.
-      if (!widget.embedded) {
+      if (!widget.embedded && mounted) {
         Navigator.of(context).pop(true);
       }
     } catch (e) {
@@ -245,6 +362,8 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     );
   }
 
+  // ---------- UI ----------
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -254,6 +373,8 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
   Widget _buildContent(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final dateLabel = DateFormat('yyyy-MM-dd - HH:mm').format(_deadline.toLocal());
+
+    final itemsForCourse = _buildItemsForCourse(_selectedCourse);
 
     return Padding(
       padding: const EdgeInsets.all(24.0),
@@ -276,15 +397,21 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Group name is required' : null,
             ),
             const SizedBox(height: 16),
+
+            // Course dropdown (bind with value, not initialValue)
             DropdownButtonFormField<String>(
-              value: availableCourses.contains(_selectedCourse) ? _selectedCourse : null,
-              items: availableCourses
+              value: _availableCourses.contains(_selectedCourse) ? _selectedCourse : null,
+              isExpanded: true,
+              items: _availableCourses
                   .map((course) => DropdownMenuItem<String>(
                         value: course,
                         child: Text(course, style: TextStyle(color: scheme.onSurface)),
                       ))
                   .toList(),
-              onChanged: (value) => setState(() => _selectedCourse = value),
+              onChanged: (value) {
+                setState(() => _selectedCourse = value);
+                _pruneMembersToCourse();
+              },
               decoration: InputDecoration(
                 hintText: 'Select Course',
                 filled: true,
@@ -296,42 +423,65 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
               ),
               validator: (v) => (v == null || v.isEmpty) ? 'Please select a course' : null,
             ),
-            const SizedBox(height: 16),
+
+            const SizedBox(height: 12),
+            if (_selectedCourse != null && _selectedCourse!.isNotEmpty)
+              _CourseRosterSummary(
+                course: _findCourseRichByName(_selectedCourse),
+                primaryText: scheme.onSurface,
+              ),
+
+            const SizedBox(height: 12),
+
+            // Members (course-scoped)
             Text(
-              'Add Members to this Project:',
+              'Members',
               style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: scheme.primary),
             ),
             const SizedBox(height: 8),
-            MultiSelectDialogField<String>(
-              items: allStudents
-                  .map((student) {
-                    final username = student['username']?.toString() ?? '';
-                    final fullname = (student['fullName']?.toString() ?? username);
-                    return MultiSelectItem<String>(username, fullname.capitalize());
-                  })
-                  .toList(),
-              initialValue: _selectedMembers,
-              title: const Text("Select Members"),
-              selectedColor: scheme.primary,
-              decoration: BoxDecoration(
-                color: scheme.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.transparent),
-              ),
-              buttonIcon: Icon(Icons.person_add, color: scheme.primary),
-              buttonText: Text("Select members to add", style: GoogleFonts.poppins(color: scheme.primary)),
-              onConfirm: (values) {
-                setState(() {
-                  _selectedMembers = List<String>.from(values);
-                });
-              },
-              chipDisplay: MultiSelectChipDisplay(
-                items: _selectedMembers.map((e) => MultiSelectItem<String>(e, e.capitalize())).toList(),
-                onTap: (value) {
-                  setState(() => _selectedMembers.remove(value));
-                },
+            AbsorbPointer(
+              absorbing: (_selectedCourse == null || _selectedCourse!.isEmpty),
+              child: Opacity(
+                opacity: (_selectedCourse == null || _selectedCourse!.isEmpty) ? 0.5 : 1,
+                child: MultiSelectDialogField<String>(
+                  items: itemsForCourse,
+                  initialValue: _selectedMembers.where(
+                    (m) => itemsForCourse.any((it) => it.value == m),
+                  ).toList(),
+                  title: const Text('Select Members'),
+                  selectedColor: scheme.primary,
+                  decoration: BoxDecoration(
+                    color: scheme.surface,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.transparent),
+                  ),
+                  buttonIcon: Icon(Icons.person_add, color: scheme.primary),
+                  buttonText: Text("Select members to add", style: GoogleFonts.poppins(color: scheme.primary)),
+                  onConfirm: (values) {
+                    setState(() => _selectedMembers
+                      ..clear()
+                      ..addAll(values));
+                  },
+                  chipDisplay: MultiSelectChipDisplay(
+                    items: _selectedMembers
+                        .map((username) {
+                          final u = _courseUserList(_selectedCourse).firstWhere(
+                                (m) => m['username'] == username,
+                                orElse: () => {'username': username, 'fullName': username, 'role': 'user'},
+                              );
+                          final isTeacher = u['role'] == 'teacher';
+                          final label = isTeacher
+                              ? '${u['fullName']} ($username) • teacher'
+                              : '${u['fullName']} ($username)';
+                          return MultiSelectItem<String>(username, label);
+                        })
+                        .toList(),
+                    onTap: (value) => setState(() => _selectedMembers.remove(value)),
+                  ),
+                ),
               ),
             ),
+
             const SizedBox(height: 16),
             Row(
               children: [
@@ -370,11 +520,9 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
     final content = _buildContent(context);
 
     if (widget.embedded) {
-      // content-only mode (no Scaffold/AppBar)
-      return content;
+      return content; // content-only mode
     }
 
-    // standalone route mode: provide its own Scaffold and AppBar (backwards compatible)
     final scheme = Theme.of(context).colorScheme;
     return Scaffold(
       backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -396,6 +544,48 @@ class _EditProjectScreenState extends State<EditProjectScreen> {
   }
 }
 
-extension StringExtension on String {
+class _CourseRosterSummary extends StatelessWidget {
+  final Map<String, dynamic>? course;
+  final Color primaryText;
+
+  const _CourseRosterSummary({
+    required this.course,
+    required this.primaryText,
+  });
+
+  List<String> _asStringList(dynamic value) {
+    if (value == null) return const [];
+    if (value is List) return value.map((e) => e.toString()).toList();
+    if (value is String) {
+      return value
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    return const [];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (course == null) return const SizedBox.shrink();
+    final lecturers = _asStringList(course!['lecturers']);
+    final students = _asStringList(course!['students']);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).brightness == Brightness.dark ? Colors.white10 : Colors.black12,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        'Course roster — Lecturers: ${lecturers.length} • Students: ${students.length}',
+        style: GoogleFonts.poppins(color: primaryText),
+      ),
+    );
+  }
+}
+
+extension StringCapExt on String {
   String capitalize() => isEmpty ? this : this[0].toUpperCase() + substring(1);
 }

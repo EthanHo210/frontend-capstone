@@ -15,7 +15,7 @@ class DashboardScaffold extends StatelessWidget {
   final VoidCallback? onBack;
 
   const DashboardScaffold({
-    Key? key,
+    super.key,
     required this.body,
     required this.bottomItems,
     required this.currentIndex,
@@ -26,7 +26,7 @@ class DashboardScaffold extends StatelessWidget {
     this.floatingActionButtonLocation,
     this.showBack = false,
     this.onBack,
-  }) : super(key: key);
+  });
 
   Widget _defaultTitle(BuildContext context) {
     return Row(mainAxisSize: MainAxisSize.min, children: [

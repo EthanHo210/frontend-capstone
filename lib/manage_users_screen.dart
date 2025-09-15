@@ -279,7 +279,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                   _textField(passwordController, 'Password', obscure: true),
                   const SizedBox(height: 8),
                   DropdownButtonFormField<String>(
-                    value: selectedRole,
+                    initialValue: selectedRole,
                     items: ['user', 'teacher', 'officer', 'admin']
                         .map((role) => DropdownMenuItem(value: role, child: Text(role)))
                         .toList(),
@@ -302,7 +302,7 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
             actions: [
               TextButton(child: const Text('Cancel'), onPressed: () => Navigator.pop(context, false)),
               ElevatedButton(
-                onPressed: () {
+                onPressed: () async {
                   final username = usernameController.text.trim();
                   final fullName = fullNameController.text.trim();
                   final email = emailController.text.trim();
@@ -321,7 +321,26 @@ class _ManageUsersScreenState extends State<ManageUsersScreen> {
                     return;
                   }
 
-                  // IMPORTANT: pass RAW password; MockDatabase.addUser() hashes internally.
+                  final ok = await showDialog<bool>(
+                    context: context,
+                    builder: (_) => AlertDialog(
+                      title: const Text('Confirm New User'),
+                      content: Text(
+                        "Create user:\n"
+                        "• Username: $username\n"
+                        "• Full name: ${fullName.isEmpty ? '(none)' : fullName}\n"
+                        "• Email: $email\n"
+                        "• Role: $selectedRole\n\nProceed?",
+                      ),
+                      actions: [
+                        TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+                        ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Confirm')),
+                      ],
+                    ),
+                  ) ?? false;
+
+                  if (!ok) return;
+
                   _db.addUser({
                     'username': username,
                     'fullName': fullName,

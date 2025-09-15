@@ -11,7 +11,16 @@ import 'app_colors.dart';
 enum AssignmentMode { manual, random }
 
 class StartNewProjectScreen extends StatefulWidget {
-  const StartNewProjectScreen({super.key});
+  final bool embedded;
+
+  /// Optional: parent can close the embedded panel after success/cancel.
+  final VoidCallback? onCloseEmbedded;
+
+  const StartNewProjectScreen({
+    super.key,
+    this.embedded = false,
+    this.onCloseEmbedded,
+  });
 
   @override
   State<StartNewProjectScreen> createState() => _StartNewProjectScreenState();
@@ -21,7 +30,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
   final TextEditingController _nameController = TextEditingController();
 
   DateTime? _deadline;
-  String? _selectedCourse; // stores the course full name (e.g., COSC1234 - Engineering)
+  String? _selectedCourse; // full course name (e.g., COSC1234 - Engineering)
 
   // Manual mode selection (usernames)
   final List<String> _selectedUsers = [];
@@ -32,31 +41,29 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
   bool _includeCourseLecturers = true;
 
   // From rich course model; for teachers we filter to only their courses
-  // CHANGED: make this mutable (not late final) to avoid LateInitializationError on fallback set.
-  List<String> _availableCourses = []; // CHANGED
+  List<String> _availableCourses = [];
 
   bool _submitting = false;
   AssignmentMode _mode = AssignmentMode.manual;
 
-  // Cached: all users except admin/officer (we’ll filter by course on demand)
-  // (Mutable for the same reason as above—safe with early returns.)
-  List<Map<String, String>> _allUsers = []; // CHANGED
+  // Cached: all users except admin/officer
+  List<Map<String, String>> _allUsers = [];
 
   @override
   void initState() {
     super.initState();
     final db = MockDatabase();
 
-    // Gate access: lecturers (teacher), admins, and officers (to match DB policy).
+    // Gate access
     final role = db.getUserRole(db.currentLoggedInUser ?? '');
-    if (role != 'teacher' && role != 'admin' && role != 'officer') { // CHANGED
+    if (role != 'teacher' && role != 'admin' && role != 'officer') {
       Future.microtask(_showUnauthorized);
       _allUsers = const [];
       _availableCourses = const [];
       return;
     }
 
-    // Build users list (exclude admin/officer from selection)
+    // Build users list (exclude admin/officer)
     _allUsers = db
         .getAllUsers()
         .where((u) =>
@@ -74,7 +81,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     final currentId = db.currentLoggedInUser ?? '';
     final currentUsername = db.getUsernameByEmail(currentId) ?? currentId;
 
-    final rich = db.getAllCoursesRich(); // [{id,name,semester,campus,lecturers,students,...}]
+    final rich = db.getAllCoursesRich();
     if (role == 'teacher') {
       _availableCourses = rich
           .where((c) => _asStringList(c['lecturers']).contains(currentUsername))
@@ -82,13 +89,11 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
           .where((s) => s.isNotEmpty)
           .toList();
     } else {
-      // admin/officer see all
       _availableCourses =
           rich.map((c) => (c['name'] ?? '').toString()).where((s) => s.isNotEmpty).toList();
     }
 
-    // Graceful fallback to legacy list (may assign again → needs mutable field)
-    if (_availableCourses.isEmpty) { // CHANGED
+    if (_availableCourses.isEmpty) {
       final legacy = db.getCourses();
       _availableCourses = (legacy is Iterable)
           ? List<String>.from(legacy.map((e) => e.toString()))
@@ -127,7 +132,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     return null;
   }
 
-  /// Build the course-scoped selectable users list (students + lecturers of the selected course).
+  /// Build the course-scoped selectable users list (students + lecturers).
   List<Map<String, String>> _courseUserList(String? courseName) {
     final rich = _findCourseRichByName(courseName);
     if (rich == null) return const [];
@@ -159,7 +164,6 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
   void _clearSelectionsOnCourseChange() {
     setState(() {
       _selectedUsers.clear();
-      // keep random count / includeLecturers as-is
     });
   }
 
@@ -169,7 +173,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       builder: (context) => AlertDialog(
         title: Text('Access Denied', style: GoogleFonts.poppins(fontWeight: FontWeight.w600)),
         content: Text(
-          'Only lecturers, admins, or officers are allowed to start a new project.', // CHANGED
+          'Only lecturers, admins, or officers are allowed to start a new project.',
           style: GoogleFonts.poppins(),
         ),
         actions: [
@@ -179,7 +183,13 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
           ),
         ],
       ),
-    ).then((_) => Navigator.of(context).maybePop());
+    ).then((_) {
+      if (widget.embedded) {
+        widget.onCloseEmbedded?.call();
+      } else {
+        Navigator.of(context).maybePop();
+      }
+    });
   }
 
   Future<void> _pickDeadline() async {
@@ -216,7 +226,6 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
     if (_mode == AssignmentMode.manual) {
       if (_selectedUsers.isEmpty) return 'Please select at least one member.';
     } else {
-      // random mode
       final count = int.tryParse(_randomCountController.text.trim());
       if (count == null || count <= 0) return 'Enter a valid number of students.';
       final course = _findCourseRichByName(_selectedCourse);
@@ -225,10 +234,6 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
         return 'Only ${courseStudents.length} student(s) are available in this course.';
       }
     }
-
-    // NOTE: We removed the global "unique name" constraint here.
-    // Duplicate detection (name+course+members) is done right before creation,
-    // after we know the exact member set (manual/random).
     return null;
   }
 
@@ -308,20 +313,16 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
       if (_mode == AssignmentMode.manual) {
         members = [..._selectedUsers];
       } else {
-        // RANDOM: pick N students
         final n = int.parse(_randomCountController.text.trim());
         final rng = Random();
         final pool = [...courseStudents]..shuffle(rng);
         final picked = pool.take(n).toList();
-
-        // optionally include all course lecturers
         final includeLects =
             _includeCourseLecturers ? [...courseLecturers] : <String>[];
-
         members = {...picked, ...includeLects}.toList();
       }
 
-      // Admin/officer must include at least one lecturer (server enforces too)
+      // Admin/officer must include at least one lecturer
       if (creatorRole != 'teacher') {
         final hasLecturer = members.any((u) => db.getUserRole(u) == 'teacher');
         if (!hasLecturer) {
@@ -342,13 +343,13 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
         }
       }
 
-      // Ensure teacher creator is included once (if they are a teacher)
+      // Ensure teacher creator is included (once)
       members = {
         ...members,
         if (creatorRole == 'teacher') currentUsername,
       }.toList();
 
-      // ---- Duplicate guard (client side) ----  // CHANGED
+      // Client-side duplicate guard
       final nameLower = _nameController.text.trim().toLowerCase();
       final all = db.getAllProjects();
       for (final p in all) {
@@ -363,9 +364,7 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
           return;
         }
       }
-      // ----------------------------------------
 
-      // addProject() enforces canCreateProject() internally (teacher/admin/officer)
       db.addProject({
         'name': _nameController.text.trim(),
         'course': _selectedCourse!, // full course name
@@ -375,11 +374,17 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
         'createdAt': DateTime.now().toIso8601String(),
         'createdBy': creatorId,
         'leader': '',
-        'members': members.join(','), // DB expects CSV of usernames
+        'members': members.join(','), // CSV of usernames
       });
 
       if (!mounted) return;
-      Navigator.pop(context, true); // tell caller to refresh
+
+      // Close appropriately depending on mode
+      if (widget.embedded) {
+        widget.onCloseEmbedded?.call();
+      } else {
+        Navigator.pop(context, true);
+      }
     } catch (e) {
       _showError('Failed to create project: $e');
     } finally {
@@ -415,6 +420,189 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
 
     final itemsForCourse = _buildItemsForCourse(_selectedCourse);
 
+    final content = SingleChildScrollView(
+      padding: const EdgeInsets.all(24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _buildInputField(context, _nameController, 'Project Name'),
+          const SizedBox(height: 16),
+
+          // Select course
+          DropdownButtonFormField<String>(
+            value: _selectedCourse, // fixed: use value:
+            isExpanded: true,
+            decoration: InputDecoration(
+              hintText: 'Select Course',
+              hintStyle: GoogleFonts.poppins(
+                color: primaryText.withOpacity(0.6),
+              ),
+              filled: true,
+              fillColor: inputFill,
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide.none,
+              ),
+              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+            ),
+            items: _availableCourses
+                .map((course) => DropdownMenuItem(
+                      value: course,
+                      child: Text(course, style: GoogleFonts.poppins(color: primaryText)),
+                    ))
+                .toList(),
+            onChanged: (value) {
+              _selectedCourse = value;
+              _clearSelectionsOnCourseChange();
+            },
+          ),
+
+          const SizedBox(height: 16),
+
+          // Assignment mode selector
+          Text('Member Assignment Mode',
+              style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: primaryText)),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              ChoiceChip(
+                label: Text('Manual', style: GoogleFonts.poppins()),
+                selected: _mode == AssignmentMode.manual,
+                onSelected: (_) => setState(() => _mode = AssignmentMode.manual),
+              ),
+              ChoiceChip(
+                label: Text('Random', style: GoogleFonts.poppins()),
+                selected: _mode == AssignmentMode.random,
+                onSelected: (_) => setState(() => _mode = AssignmentMode.random),
+              ),
+            ],
+          ),
+
+          const SizedBox(height: 12),
+
+          if (_selectedCourse != null && _selectedCourse!.isNotEmpty)
+            _CourseRosterSummary(
+              course: _findCourseRichByName(_selectedCourse),
+              primaryText: primaryText,
+            ),
+
+          const SizedBox(height: 12),
+
+          // Manual mode: MultiSelect limited to course roster
+          if (_mode == AssignmentMode.manual) ...[
+            Text('Add Members to this Project:',
+                style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: primaryText)),
+            const SizedBox(height: 8),
+            AbsorbPointer(
+              absorbing: (_selectedCourse == null || _selectedCourse!.isEmpty),
+              child: Opacity(
+                opacity: (_selectedCourse == null || _selectedCourse!.isEmpty) ? 0.5 : 1,
+                child: MultiSelectDialogField<String>(
+                  items: itemsForCourse,
+                  title: Text('Select Members', style: GoogleFonts.poppins()),
+                  selectedColor: AppColors.blueText,
+                  decoration: BoxDecoration(
+                    color: inputFill,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.transparent),
+                  ),
+                  buttonIcon: Icon(Icons.person_add, color: primaryText),
+                  buttonText: Text('Select members to add',
+                      style: GoogleFonts.poppins(color: primaryText)),
+                  onConfirm: (values) => setState(() => _selectedUsers
+                    ..clear()
+                    ..addAll(values)),
+                  chipDisplay: MultiSelectChipDisplay(
+                    items: _selectedUsers.map((username) {
+                      final u = _courseUserList(_selectedCourse).firstWhere(
+                            (m) => m['username'] == username,
+                            orElse: () => <String, String>{
+                              'username': username,
+                              'fullName': username,
+                              'role': 'user'
+                            },
+                          );
+                      final isTeacher = u['role'] == 'teacher';
+                      final label = isTeacher
+                          ? '${u['fullName']} ($username) • teacher'
+                          : '${u['fullName']} ($username)';
+                      return MultiSelectItem<String>(username, label);
+                    }).toList(),
+                    onTap: (value) {
+                      setState(() {
+                        _selectedUsers.remove(value);
+                      });
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ],
+
+          // Random mode: count + include lecturers
+          if (_mode == AssignmentMode.random) ...[
+            Row(
+              children: [
+                Expanded(
+                  child: _buildNumberField(
+                      context, _randomCountController, 'Number of students (random)'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile.adaptive(
+              value: _includeCourseLecturers,
+              onChanged: (v) => setState(() => _includeCourseLecturers = v),
+              activeColor: AppColors.blueText,
+              title: Text('Include all course lecturers',
+                  style: GoogleFonts.poppins(color: primaryText)),
+              subtitle: Text(
+                'Recommended. Admins/officers must include at least one lecturer.',
+                style: GoogleFonts.poppins(color: primaryText.withOpacity(0.7)),
+              ),
+            ),
+          ],
+
+          const SizedBox(height: 16),
+          Row(
+            children: [
+              Icon(Icons.calendar_today, color: primaryText),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  _deadline == null
+                      ? 'Pick Project Deadline'
+                      : 'Deadline: ${DateFormat('yyyy-MM-dd HH:mm').format(_deadline!.toLocal())}',
+                  style: GoogleFonts.poppins(fontSize: 16, color: primaryText),
+                ),
+              ),
+              IconButton(icon: Icon(Icons.date_range, color: primaryText), onPressed: _pickDeadline),
+            ],
+          ),
+
+          const SizedBox(height: 24),
+          ElevatedButton(
+            onPressed: _submitting ? null : _confirmSubmitProject,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.blueText,
+              padding: const EdgeInsets.symmetric(vertical: 12),
+            ),
+            child: Text(
+              _submitting ? 'CREATING…' : 'CONFIRM',
+              style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+          ),
+        ],
+      ),
+    );
+
+    // Embedded: keep dashboard chrome
+    if (widget.embedded) {
+      return SafeArea(top: false, bottom: false, child: content);
+    }
+
+    // Standalone route (shows its own AppBar)
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       appBar: AppBar(
@@ -422,189 +610,20 @@ class _StartNewProjectScreenState extends State<StartNewProjectScreen> {
         elevation: 0,
         leading: IconButton(
           icon: Icon(Icons.close, color: primaryText),
-          onPressed: () => Navigator.pop(context, false),
+          onPressed: () {
+            if (widget.embedded) {
+              widget.onCloseEmbedded?.call();
+            } else {
+              Navigator.pop(context, false);
+            }
+          },
         ),
         title: Text(
           'Start New Project',
           style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: primaryText),
         ),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            _buildInputField(context, _nameController, 'Project Name'),
-            const SizedBox(height: 16),
-
-            // Select course
-            DropdownButtonFormField<String>(
-              value: _selectedCourse,
-              isExpanded: true,
-              decoration: InputDecoration(
-                hintText: 'Select Course',
-                hintStyle: GoogleFonts.poppins(
-                  color: primaryText.withOpacity(0.6),
-                ),
-                filled: true,
-                fillColor: inputFill,
-                border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: BorderSide.none,
-                ),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-              ),
-              items: _availableCourses
-                  .map((course) => DropdownMenuItem(
-                        value: course,
-                        child: Text(course, style: GoogleFonts.poppins(color: primaryText)),
-                      ))
-                  .toList(),
-              onChanged: (value) {
-                _selectedCourse = value;
-                _clearSelectionsOnCourseChange();
-              },
-            ),
-
-            const SizedBox(height: 16),
-
-            // Assignment mode selector
-            Text('Member Assignment Mode',
-                style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: primaryText)),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              children: [
-                ChoiceChip(
-                  label: Text('Manual', style: GoogleFonts.poppins()),
-                  selected: _mode == AssignmentMode.manual,
-                  onSelected: (_) => setState(() => _mode = AssignmentMode.manual),
-                ),
-                ChoiceChip(
-                  label: Text('Random', style: GoogleFonts.poppins()),
-                  selected: _mode == AssignmentMode.random,
-                  onSelected: (_) => setState(() => _mode = AssignmentMode.random),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 12),
-
-            if (_selectedCourse != null && _selectedCourse!.isNotEmpty)
-              _CourseRosterSummary(
-                course: _findCourseRichByName(_selectedCourse),
-                primaryText: primaryText,
-              ),
-
-            const SizedBox(height: 12),
-
-            // Manual mode: MultiSelect limited to course roster
-            if (_mode == AssignmentMode.manual) ...[
-              Text('Add Members to this Project:',
-                  style: GoogleFonts.poppins(fontWeight: FontWeight.bold, color: primaryText)),
-              const SizedBox(height: 8),
-              AbsorbPointer(
-                absorbing: (_selectedCourse == null || _selectedCourse!.isEmpty),
-                child: Opacity(
-                  opacity: (_selectedCourse == null || _selectedCourse!.isEmpty) ? 0.5 : 1,
-                  child: MultiSelectDialogField<String>(
-                    items: itemsForCourse,
-                    title: Text('Select Members', style: GoogleFonts.poppins()),
-                    selectedColor: AppColors.blueText,
-                    decoration: BoxDecoration(
-                      color: inputFill,
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(color: Colors.transparent),
-                    ),
-                    buttonIcon: Icon(Icons.person_add, color: primaryText),
-                    buttonText: Text('Select members to add',
-                        style: GoogleFonts.poppins(color: primaryText)),
-                    onConfirm: (values) => setState(() => _selectedUsers
-                      ..clear()
-                      ..addAll(values)),
-                    chipDisplay: MultiSelectChipDisplay(
-                      items: _selectedUsers.map((username) {
-                        final u = _courseUserList(_selectedCourse).firstWhere(
-                              (m) => m['username'] == username,
-                              orElse: () => <String, String>{
-                                'username': username,
-                                'fullName': username,
-                                'role': 'user'
-                              },
-                            );
-                        final isTeacher = u['role'] == 'teacher';
-                        final label = isTeacher
-                            ? '${u['fullName']} ($username) • teacher'
-                            : '${u['fullName']} ($username)';
-                        return MultiSelectItem<String>(username, label);
-                      }).toList(),
-                      onTap: (value) {
-                        setState(() {
-                          _selectedUsers.remove(value);
-                        });
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            ],
-
-            // Random mode: count + include lecturers
-            if (_mode == AssignmentMode.random) ...[
-              Row(
-                children: [
-                  Expanded(
-                    child: _buildNumberField(
-                        context, _randomCountController, 'Number of students (random)'),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile.adaptive(
-                value: _includeCourseLecturers,
-                onChanged: (v) => setState(() => _includeCourseLecturers = v),
-                activeColor: AppColors.blueText,
-                title: Text('Include all course lecturers',
-                    style: GoogleFonts.poppins(color: primaryText)),
-                subtitle: Text(
-                  'Recommended. Admins/officers must include at least one lecturer.',
-                  style: GoogleFonts.poppins(color: primaryText.withOpacity(0.7)),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Icon(Icons.calendar_today, color: primaryText),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    _deadline == null
-                        ? 'Pick Project Deadline'
-                        : 'Deadline: ${DateFormat('yyyy-MM-dd HH:mm').format(_deadline!.toLocal())}',
-                    style: GoogleFonts.poppins(fontSize: 16, color: primaryText),
-                  ),
-                ),
-                IconButton(icon: Icon(Icons.date_range, color: primaryText), onPressed: _pickDeadline),
-              ],
-            ),
-
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: _submitting ? null : _confirmSubmitProject,
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.blueText,
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: Text(
-                _submitting ? 'CREATING…' : 'CONFIRM',
-                style: GoogleFonts.poppins(color: Colors.white, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-      ),
+      body: content,
     );
   }
 

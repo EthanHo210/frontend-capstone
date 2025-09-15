@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'mock_database.dart';
-import 'course_teams_screen.dart'; // only for type reference; fine to keep
+// only for type reference; fine to keep
 import 'app_colors.dart';
 
 class SelectCoursesScreen extends StatelessWidget {
@@ -88,8 +88,7 @@ class SelectCoursesScreen extends StatelessWidget {
     final theme   = Theme.of(context);
     final isDark  = theme.brightness == Brightness.dark;
     final titleColor = theme.textTheme.titleMedium?.color ??
-        theme.textTheme.bodyLarge?.color ??
-        Colors.black;
+        theme.textTheme.bodyLarge?.color ?? Colors.black;
     final subColor = theme.textTheme.bodyMedium?.color ??
         (isDark ? Colors.white70 : Colors.black87);
     final chipBg   = isDark ? Colors.white10 : Colors.black12;
@@ -99,16 +98,27 @@ class SelectCoursesScreen extends StatelessWidget {
     final name      = (rich['name'] ?? '').toString();
     final semester  = (rich['semester'] ?? 'N/A').toString();
     final campus    = (rich['campus'] ?? 'N/A').toString();
-    final lecturers = _asStringList(rich['lecturers']);
+
+    // ↓ map usernames -> full names (fallback to username if empty)
+    final db = MockDatabase();
+    final lecturerUsernames = _asStringList(rich['lecturers']);
+    final lecturerNames = lecturerUsernames
+        .map((u) {
+          final full = db.getFullNameByUsername(u) ?? '';
+          return full.trim().isNotEmpty ? full : u;
+        })
+        .toList();
+
     final students  = _asStringList(rich['students']);
 
     String lecturerLine;
-    if (lecturers.isEmpty) {
+    if (lecturerNames.isEmpty) {
       lecturerLine = 'Lecturers: —';
-    } else if (lecturers.length <= 2) {
-      lecturerLine = 'Lecturers: ${lecturers.join(', ')}';
+    } else if (lecturerNames.length <= 2) {
+      lecturerLine = 'Lecturers: ${lecturerNames.join(', ')}';
     } else {
-      lecturerLine = 'Lecturers: ${lecturers.take(2).join(', ')} +${lecturers.length - 2}';
+      lecturerLine =
+          'Lecturers: ${lecturerNames.take(2).join(', ')} +${lecturerNames.length - 2}';
     }
     final studentLine = 'Students: ${students.length}';
 

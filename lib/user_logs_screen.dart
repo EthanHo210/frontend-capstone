@@ -46,7 +46,9 @@ class _UserLogsScreenState extends State<UserLogsScreen> {
       if (!isTeacher &&
           role != 'teacher' &&
           role != 'user' &&
-          role != 'officer') return false; // hide admins for non-teachers
+          role != 'officer') {
+        return false; // hide admins for non-teachers
+      }
       return true;
     }).toList()
       ..sort((a, b) =>

@@ -1,5 +1,5 @@
 // main.dart
-import 'dart:async'; // <-- NEW: for StreamSubscription
+import 'dart:async'; // for StreamSubscription
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -42,9 +42,12 @@ class TogetherApp extends StatefulWidget {
 class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
   ThemeMode _themeMode = ThemeMode.light;
 
-  // --- NEW: we’ll show SnackBars for notifications
+  // SnackBars for in-app notifications
   final GlobalKey<ScaffoldMessengerState> _messengerKey =
       GlobalKey<ScaffoldMessengerState>();
+  // NEW: navigator key so we can programmatically redirect after session restore
+  final GlobalKey<NavigatorState> _navKey = GlobalKey<NavigatorState>();
+
   StreamSubscription<Map<String, dynamic>>? _notifSub;
   DeadlineNotifier? _deadline;
 
@@ -53,7 +56,8 @@ class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _loadTheme();
-    _listenForNotifications(); // NEW
+    _restoreSession();              // NEW: try to jump straight to dashboard if user saved
+    _listenForNotifications();
 
     _deadline = DeadlineNotifier(
       db: MockDatabase(),
@@ -91,31 +95,38 @@ class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
     _saveTheme(isDark);
   }
 
+  // NEW: Session auto-restore. If a previous user id (username or email)
+  // exists, restore MockDatabase's session and push to /dashboard.
+  Future<void> _restoreSession() async {
+    final prefs = await SharedPreferences.getInstance();
+    final saved = prefs.getString('loggedInUser');
+    if (saved != null && MockDatabase().restoreSession(saved)) {
+      // Navigate after first frame so MaterialApp is mounted
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _navKey.currentState?.pushReplacementNamed('/dashboard');
+      });
+    }
+  }
+
   // -------------------------
-  // NEW: Notification hookup
+  // Notification hookup
   // -------------------------
   void _listenForNotifications() {
     final db = MockDatabase();
 
-    // Listen to all notifications coming from the MockDatabase
     _notifSub = db.notificationStream.listen((event) {
-      // Current user can be an email or username in your app,
-      // normalize it to the username for comparison.
       final currentId = db.currentLoggedInUser;
       final currentUsername =
           db.getUsernameByEmail(currentId ?? '') ?? currentId ?? '';
 
-      // Only show for the active user
       final target = (event['username'] as String?) ?? '';
       if (target != currentUsername) return;
 
       final n = Map<String, dynamic>.from(
           event['notification'] as Map<String, dynamic>);
 
-      // Respect user’s notification toggle
       if (!db.isNotificationsEnabled(currentUsername)) return;
 
-      // Show a lightweight in-app banner for now
       final title = (n['title'] ?? 'Notification').toString();
       final body = (n['body'] ?? '').toString();
 
@@ -128,8 +139,6 @@ class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
         ),
       );
     });
-
-
   }
 
   @override
@@ -137,7 +146,8 @@ class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
     return MaterialApp(
       title: 'Together!',
       debugShowCheckedModeBanner: false,
-      scaffoldMessengerKey: _messengerKey, // NEW: needed for SnackBars
+      navigatorKey: _navKey,               // NEW
+      scaffoldMessengerKey: _messengerKey, // for SnackBars
       theme: ThemeData(
         brightness: Brightness.light,
         scaffoldBackgroundColor: AppColors.background,
@@ -289,7 +299,7 @@ class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
             return MaterialPageRoute(
               builder: (_) => const UpdatePasswordScreen(),
               settings: settings,
-            );                   
+            );
 
           case '/about_app':
             return MaterialPageRoute(builder: (_) => const AboutAppScreen());
@@ -303,11 +313,11 @@ class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
               settings: settings,
             );
 
-          case '/passwordreset': // legacy alias (kept so old links still work)
+          case '/passwordreset': // legacy alias
             return MaterialPageRoute(
               builder: (_) => const PasswordResetScreen(),
               settings: settings,
-            );   
+            );
 
           case '/edit_project':
             final args = settings.arguments as Map<String, dynamic>;
@@ -342,6 +352,10 @@ class _TogetherAppState extends State<TogetherApp> with WidgetsBindingObserver {
               builder: (_) =>
                   AssignTaskScreen(projectName: args['projectName']),
             );
+
+          case '/project_planning':
+            return MaterialPageRoute(
+                builder: (_) => const ProjectPlanningScreen());
 
           default:
             return null;

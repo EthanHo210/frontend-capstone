@@ -71,9 +71,6 @@ class MockDatabase {
     },
   ];
 
-  // -----------------------------
-  // NOTIFICATIONS
-  // -----------------------------
   final Map<String, List<Map<String, dynamic>>> _notificationsByUser = {};
   final Map<String, bool> _notifEnabled = {};
   final StreamController<Map<String, dynamic>> _notifStream =
@@ -98,7 +95,9 @@ class MockDatabase {
   void markAllNotificationsRead(String username) {
     final list = _notificationsByUser[username];
     if (list == null) return;
-    for (final n in list) n['read'] = true;
+    for (final n in list) {
+      n['read'] = true;
+    }
   }
 
   void markNotificationRead(String username, String id) {
@@ -121,7 +120,7 @@ class MockDatabase {
     String username, {
     required String title,
     required String body,
-    required String type, // 'project_created'|'leader_assigned'|'task_assigned'|'proof_uploaded'|'proof_result'
+    required String type, // 'project_created'|'leader_assigned'|'task_assigned'|'proof_uploaded'|'proof_result'|'system'
     String? payload,
   }) {
     if (!isNotificationsEnabled(username)) return;
@@ -151,7 +150,6 @@ class MockDatabase {
   /// { id, name, semester, campus, lecturers<List<String>>, students<List<String>>, description, createdAt }
   final Map<String, Map<String, dynamic>> _coursesById = {};
 
-  /// Create a rich course and keep legacy names in sync.
   /// Create (or upsert) a rich course and keep legacy names in sync.
   /// If a course with the same (name, semester, campus) already exists,
   /// we merge lecturers/students and return its id instead of creating a duplicate.
@@ -343,12 +341,10 @@ class MockDatabase {
   bool addLecturerToCourse(String courseIdentifier, String username) {
     final course = _resolveCourse(courseIdentifier);
     if (course == null) return false;
-    // Optional: require the target user to be a teacher
     if (!isTeacher(username)) return false;
     final list = (course['lecturers'] as List).cast<String>();
     if (!list.contains(username)) list.add(username);
     return true;
-    // (you can emit notifications here if desired)
   }
 
   bool removeLecturerFromCourse(String courseIdentifier, String username) {
@@ -363,7 +359,6 @@ class MockDatabase {
   bool addStudentToCourse(String courseIdentifier, String username) {
     final course = _resolveCourse(courseIdentifier);
     if (course == null) return false;
-    // Optional: require a 'user' role
     if (!isStudent(username)) return false;
     final list = (course['students'] as List).cast<String>();
     if (!list.contains(username)) list.add(username);
@@ -408,6 +403,20 @@ class MockDatabase {
   final Map<String, List<Map<String, dynamic>>> _projectTasks = {};
   final Map<String, String> _projectLeaders = {};
 
+  // --- member parsing helper (CSV or List) ---
+  List<String> _parseMembers(dynamic raw) {
+    if (raw is List) {
+      return raw.map((e) => e.toString()).where((e) => e.isNotEmpty).toList();
+    } else if (raw is String) {
+      return raw
+          .split(',')
+          .map((e) => e.trim())
+          .where((e) => e.isNotEmpty)
+          .toList();
+    }
+    return const [];
+  }
+
   // --- LOCK / STATUS HELPERS ---
   double projectCompletionPercent(String projectName) {
     final tasks = _projectTasks[projectName] ?? const [];
@@ -423,7 +432,6 @@ class MockDatabase {
     return (confirmed / tasks.length) * 100.0;
   }
 
-  /// Live status based on deadline + computed completion
   String currentProjectStatus(String projectName) {
     final proj = _projects.firstWhere(
       (p) => (p['name'] ?? '') == projectName,
@@ -435,14 +443,25 @@ class MockDatabase {
     return calculateStatus(deadline, completion);
   }
 
-  /// Completed or Overdue projects are "locked" (no more submissions)
   bool isProjectLocked(String projectName) {
     final status = currentProjectStatus(projectName);
     return status == 'Completed' || status == 'Overdue';
   }
 
+  void _bumpProjectStatus(String projectName) {
+    final idx = _projects.indexWhere((p) => (p['name'] ?? '') == projectName);
+    if (idx == -1) return;
+    final deadline = (_projects[idx]['deadline'] ?? '').toString();
+    final completion = projectCompletionPercent(projectName).round();
+    _projects[idx]['status'] = calculateStatus(deadline, completion);
+  }
 
   void assignLeader(String projectName, String username) {
+    // server-side lock gate
+    if (isProjectLocked(projectName)) {
+      throw StateError('Project is locked (Completed/Overdue). Leader changes are disabled.');
+    }
+
     _projectLeaders[projectName] = username;
     for (var project in _projects) {
       if (project['name'] == projectName) {
@@ -467,6 +486,11 @@ class MockDatabase {
     required String assignedTo,
     List<String>? subtasks,
   }) {
+    // server-side lock gate
+    if (isProjectLocked(projectName)) {
+      throw StateError('Project is locked (Completed/Overdue). Cannot add new tasks.');
+    }
+
     final task = {
       'id': DateTime.now().millisecondsSinceEpoch.toString(),
       'title': title,
@@ -499,16 +523,19 @@ class MockDatabase {
       type: 'task_assigned',
       payload: projectName,
     );
+
+    // keep status fresh (typically remains On-track)
+    _bumpProjectStatus(projectName);
   }
 
   List<Map<String, dynamic>> getTasksForProject(String projectName) =>
       _projectTasks[projectName] ?? [];
 
-  void submitTaskProof(String projectName, String taskId, int subtaskIndex,  String proofText, String user, String comment, String imageUrl) {
-    if (isProjectLocked(projectName)){
+  // legacy bulk-proof (kept for compatibility)
+  void submitTaskProof(String projectName, String taskId, int subtaskIndex, String proofText, String user, String comment, String imageUrl) {
+    if (isProjectLocked(projectName)) {
       return;
     }
-
     final tasks = _projectTasks[projectName];
     if (tasks == null) return;
 
@@ -526,28 +553,26 @@ class MockDatabase {
     subtask['comments'] = <String, String>{};
     subtask['submittedBy'] = user;
 
-    if (task.isNotEmpty) {
-      task['proof'] = proofText;
-      task['status'] = 'awaiting_review';
-      task['votes'] = <String, bool>{};
-      task['comments'] = <String, String>{};
+    task['proof'] = proofText;
+    task['status'] = 'awaiting_review';
+    task['votes'] = <String, bool>{};
+    task['comments'] = <String, String>{};
 
-      final allMembers =
-          _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {})['members']
-                  as List? ??
-              [];
-      final assignee = task['assignedTo'];
-      final reviewers = allMembers.where((m) => m != assignee).cast<String>().toList();
+    // notify rest of team (simple approach)
+    final allMembers = _parseMembers(
+      _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {})['members'],
+    );
+    final assignee = task['assignedTo'];
+    final reviewers = allMembers.where((m) => m != assignee).toList();
 
-      for (final r in reviewers) {
-        _pushNotification(
-          r,
-          title: 'Task proof submitted',
-          body: 'Proof submitted for "${task['title']}" in "$projectName". Please review.',
-          type: 'proof_uploaded',
-          payload: taskId,
-        );
-      }
+    for (final r in reviewers) {
+      _pushNotification(
+        r,
+        title: 'Task proof submitted',
+        body: 'Proof submitted for "${task['title']}" in "$projectName". Please review.',
+        type: 'proof_uploaded',
+        payload: taskId,
+      );
     }
   }
 
@@ -565,10 +590,9 @@ class MockDatabase {
       (task['votes'] as Map<String, bool>)[voter] = agree;
       (task['comments'] as Map<String, String>)[voter] = comment;
 
-      final allMembers =
-          _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {})['members']
-                  as List? ??
-              [];
+      final allMembers = _parseMembers(
+        _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {})['members'],
+      );
 
       final votes = task['votes'] as Map<String, bool>;
       if (votes.length >= (allMembers.length / 2).ceil()) {
@@ -578,6 +602,7 @@ class MockDatabase {
         } else {
           task['status'] = 'Rejected';
         }
+        _bumpProjectStatus(projectName);
       }
     }
   }
@@ -611,10 +636,9 @@ class MockDatabase {
     (subtask['votes'] as Map<String, bool>)[voter] = agree;
     (subtask['comments'] as Map<String, String>)[voter] = comment;
 
-    final allMembers =
-        _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {})['members']
-                as List? ??
-            [];
+    final allMembers = _parseMembers(
+      _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {})['members'],
+    );
 
     final assignee = task['assignedTo'];
     final eligibleVoters = allMembers
@@ -623,7 +647,6 @@ class MockDatabase {
           final r = getUserRole(m);
           return r != 'admin' && r != 'officer';
         })
-        .cast<String>()
         .toList();
 
     final votes = subtask['votes'] as Map<String, bool>;
@@ -632,6 +655,7 @@ class MockDatabase {
       final approvals =
           votes.entries.where((e) => eligibleVoters.contains(e.key) && e.value).length;
       subtask['status'] = approvals > (eligibleVoters.length / 2) ? 'Approved' : 'Rejected';
+      _bumpProjectStatus(projectName);
     }
 
     if (subtask['comments'] == null || subtask['comments'] is! Map<String, String>) {
@@ -648,6 +672,9 @@ class MockDatabase {
   }
 
   void updateSubtasks(String projectName, String taskId, List<String> updatedTitles) {
+    // If project is locked, ignore edits (UI shows lock; backend enforces too)
+    if (isProjectLocked(projectName)) return;
+
     final tasks = _projectTasks[projectName];
     if (tasks == null) return;
 
@@ -707,6 +734,8 @@ class MockDatabase {
         payload: projectName,
       );
     }
+
+    _bumpProjectStatus(projectName);
   }
 
   void submitSubtaskProof(
@@ -717,10 +746,8 @@ class MockDatabase {
     String comment,
     String imageUrl,
   ) {
-    final proj = _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {});
-    final status = (proj['status'] ?? '').toString();
-    if (status == 'Completed' || status == 'Overdue') {
-      return; // or throw if you prefer surfacing an error
+    if (isProjectLocked(projectName)) {
+      return; // hard stop on locked projects
     }
 
     final tasks = _projectTasks[projectName];
@@ -740,10 +767,9 @@ class MockDatabase {
     subtask['comments'] = <String, String>{};
     subtask['submittedBy'] = user;
 
-    final allMembers =
-        _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {})['members']
-                as List? ??
-            [];
+    final allMembers = _parseMembers(
+      _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {})['members'],
+    );
     final assignee = task['assignedTo'];
     final reviewers = allMembers
         .where((m) => m != user && m != assignee)
@@ -751,7 +777,6 @@ class MockDatabase {
           final r = getUserRole(m);
           return r != 'admin' && r != 'officer';
         })
-        .cast<String>()
         .toList();
 
     final subtaskTitle = (subtask['title'] ?? '').toString();
@@ -793,12 +818,14 @@ class MockDatabase {
       _pushNotification(
         submitter,
         title: subtask['status'] == 'Approved' ? 'Proof approved' : 'Proof rejected',
-        body:
-            '"$subtaskTitle" in "$projectName" was ${subtask['status'].toString().toLowerCase()}.',
+        body: '"$subtaskTitle" in "$projectName" was ${subtask['status'].toString().toLowerCase()}.',
         type: 'proof_result',
         payload: taskId,
       );
     }
+
+    // keep project status current for admin Tracking screen
+    _bumpProjectStatus(projectName);
   }
 
   void replaceSubtasks(
@@ -811,13 +838,14 @@ class MockDatabase {
       final index = tasks.indexWhere((t) => t['id'] == taskId);
       if (index != -1) {
         tasks[index]['subtasks'] = newSubtasks;
+        _bumpProjectStatus(projectName);
       }
     }
   }
 
   List<String> getProjectMembers(String projectName) {
     final project = _projects.firstWhere((p) => p['name'] == projectName, orElse: () => {});
-    return List<String>.from(project['members'] ?? []);
+    return _parseMembers(project['members']);
   }
 
   // -----------------------------
@@ -859,7 +887,7 @@ class MockDatabase {
 
       final pStart = (p['startDate'] ?? '').toString();
       final pDeadline = (p['deadline'] ?? '').toString();
-      final pMembers = (p['members'] as List?)?.map((e) => e.toString()).toList() ?? const <String>[];
+      final pMembers = _parseMembers(p['members']);
 
       if (pName == nameKey &&
           pCourseKey == courseKey &&
@@ -895,7 +923,7 @@ class MockDatabase {
     }
 
     // Parse members from CSV first (used by the policy check and below)
-    final members = projectData['members']!
+    final members = (projectData['members'] ?? '')
         .split(',')
         .map((e) => e.trim())
         .where((e) => e.isNotEmpty)
@@ -911,7 +939,7 @@ class MockDatabase {
       }
     }
 
-    // ⬇️ NEW: duplicate guard BEFORE adding
+    // Duplicate guard BEFORE adding
     if (_isDuplicateProject(
       name: projectData['name']!.trim(),
       courseId: resolvedCourseId,
@@ -922,7 +950,6 @@ class MockDatabase {
     )) {
       throw StateError('A project with the same name, course, dates, and members already exists.');
     }
-    // ⬆️ NEW
 
     final status = calculateStatus(projectData['deadline']!, 0);
 
@@ -932,13 +959,12 @@ class MockDatabase {
     _projects.add({
       'id': _uuid.v4(),
       'name': projectData['name']!,
-      'members': members,
+      'members': members, // store as List<String>
       'startDate': projectData['startDate']!,
       'deadline': projectData['deadline']!,
       'status': status,
       'course': resolvedCourseName,
       'courseId': resolvedCourseId, // keep both
-
       'createdAt': DateTime.now().toIso8601String(),
       'createdBy': createdBy,
     });
@@ -971,7 +997,7 @@ class MockDatabase {
   List<Map<String, dynamic>> getProjectsForCurrentUser() {
     final username = getUsernameByEmail(_currentLoggedInUser ?? '') ?? '';
     return _projects.where((project) {
-      final members = (project['members'] as List).cast<String>();
+      final members = _parseMembers(project['members']);
       return members.contains(username);
     }).toList();
   }
@@ -1093,10 +1119,11 @@ class MockDatabase {
             _userProjects[newUsername] = _userProjects.remove(oldUsername)!;
           }
           for (var project in _projects) {
-            if (project['members'] is List) {
-              project['members'] = (project['members'] as List)
-                  .map((m) => m == oldUsername ? newUsername : m)
-                  .toList();
+            // handle both List and CSV members
+            final members = _parseMembers(project['members']);
+            if (members.contains(oldUsername)) {
+              final updated = members.map((m) => m == oldUsername ? newUsername : m).toList();
+              project['members'] = updated;
             }
           }
           user['username'] = newUsername;
@@ -1226,6 +1253,15 @@ class MockDatabase {
     _users.removeWhere((u) => u['username'] == username);
     _notificationsByUser.remove(username);
     _notifEnabled.remove(username);
+
+    // also remove from projects membership
+    for (final p in _projects) {
+      final members = _parseMembers(p['members']);
+      if (members.contains(username)) {
+        members.remove(username);
+        p['members'] = members;
+      }
+    }
   }
 
   // -----------------------------
@@ -1335,7 +1371,7 @@ class MockDatabase {
     _projectTasks.remove(projectName);
     _projectLeaders.remove(projectName);
 
-    final members = List<String>.from(project['members'] ?? []);
+    final members = _parseMembers(project['members']);
     for (final member in members) {
       if (_userProjects.containsKey(member) &&
           _userProjects[member]?['project'] == projectName) {
@@ -1368,6 +1404,25 @@ class MockDatabase {
         payload: payload ?? projectName,
       );
     }
+  }
+
+  // --- Session helpers (persist/restore) ---
+  bool userExists(String id) =>
+      _users.any((u) => u['username'] == id || u['email'] == id);
+
+  /// Try restoring a session from a stored username/email.
+  bool restoreSession(String id) {
+    final exists = _users.any((u) => u['username'] == id || u['email'] == id);
+    if (exists) {
+      _currentLoggedInUser = id;
+      return true;
+    }
+    return false;
+  }
+
+  /// Optional direct setter if needed.
+  void setCurrentLoggedInUser(String id) {
+    _currentLoggedInUser = id;
   }
 
   // -----------------------------

@@ -5,7 +5,7 @@ import 'package:intl/intl.dart';
 import 'app_colors.dart';
 import 'mock_database.dart';
 import 'dashboard_scaffold.dart';
-import 'route_observer.dart'; // ⬅️ NEW: for RouteAware refresh
+import 'route_observer.dart'; // ⬅️ for RouteAware refresh
 
 class CourseTeamsScreen extends StatefulWidget {
   /// Can be a course **name** or **id**. We’ll resolve either.
@@ -57,7 +57,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
     _loadProjects();
   }
 
-  // ⬇️ NEW: subscribe to route observer so when we pop back here, we reload.
+  // ⬇️ subscribe so when we pop back here, we reload.
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -79,7 +79,6 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
     _resolveCourse();
     _loadProjects();
   }
-  // ⬆️ NEW
 
   @override
   void didUpdateWidget(covariant CourseTeamsScreen oldWidget) {
@@ -197,8 +196,8 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
     return copy.first;
   }
 
-  // --- single place to start a new project (enables the button) ---
-  Future<void> _handleStartNewProject() async { // ⬅️ made async
+  // --- single place to start a new project (keeps dashboard chrome if callback) ---
+  Future<void> _handleStartNewProject() async {
     if (!(userRole == 'admin' || userRole == 'officer' || userRole == 'teacher')) return;
 
     // Prefer the embedded callback if parent provided it
@@ -207,9 +206,9 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
       return;
     }
 
-    // Fallback: use the existing named route, refresh when coming back
-    await Navigator.pushNamed(context, '/start_new_project'); // ⬅️ await
-    if (mounted) _loadProjects(); // ⬅️ refresh
+    // Fallback: use standalone route
+    await Navigator.pushNamed(context, '/start_new_project');
+    if (mounted) _loadProjects();
   }
 
   // ---------- UI bits ----------
@@ -344,7 +343,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
                       fontWeight: FontWeight.w500,
                     ),
                   ),
-                  // 👇 intentionally no extra Create button here
+                  // intentionally no extra Create button here
                 ],
               ),
             ),
@@ -532,8 +531,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
     if (userRole == 'admin' || userRole == 'officer') {
       switch (index) {
         case 0:
-          Navigator.pushNamed(context, '/start_new_project')
-              .then((_) => _loadProjects()); // ⬅️ refresh after return
+          _handleStartNewProject(); // ✅ use callback/bottom sheet
           break;
         case 1:
           break;
@@ -564,8 +562,7 @@ class _CourseTeamsScreenState extends State<CourseTeamsScreen> with RouteAware {
     } else if (userRole == 'teacher') {
       switch (index) {
         case 0:
-          Navigator.pushNamed(context, '/start_new_project')
-              .then((_) => _loadProjects()); // ⬅️ refresh after return
+          _handleStartNewProject(); // ✅ use callback/bottom sheet
           break;
         case 1:
           break;
